@@ -94,12 +94,11 @@ power_grid, distribution_area, consumer, connection, meter_reading, tariff_slab,
 - HTML5  
 - CSS3  
 - JavaScript  
-- React.js *(UI in progress)*  
+- React.js 
 
 ### Tools
 - Git & GitHub  
 - PostgreSQL CLI / pgAdmin  
 
----
 
 
