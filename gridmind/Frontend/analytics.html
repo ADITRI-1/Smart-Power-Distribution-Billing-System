@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Power - Analytics</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="power-grids.html">Power Grids</a></li>
+                <li><a href="distribution-areas.html">Distribution Areas</a></li>
+                <li><a href="consumers.html">Consumers</a></li>
+                <li><a href="connections.html">Connections</a></li>
+                <li><a href="meter-readings.html">Meter Readings</a></li>
+                <li><a href="bills.html">Bills</a></li>
+                <li><a href="analytics.html" class="active">Analytics</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Analytics</h1>
+            </div>
+
+            <div class="charts-grid" style="margin-bottom: 2rem;">
+                <div class="chart-card">
+                    <h3>Area-wise Consumption</h3>
+                    <div class="chart-placeholder" style="background: white; border: none; padding: 1rem;">
+                        <canvas id="consumptionPieChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Supply vs Consumption</h3>
+                    <div class="chart-placeholder" style="background: white; border: none; padding: 1rem;">
+                        <canvas id="supplyBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-card">
+                <div class="table-header">Top 5 Highest Consumption Areas</div>
+                <table class="data-table" id="top-areas-table">
+                    <thead>
+                        <tr>
+                            <th>Zone</th><th>Total Units Consumed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="table-card">
+                <div class="table-header" style="color: var(--text-main);">
+                    <span style="color: #F59E0B;">⚠️</span> Power Loss Detection
+                </div>
+                <table class="data-table" id="power-loss-table">
+                    <thead>
+                        <tr>
+                            <th>Zone</th><th>City</th><th>Supplied</th><th>Consumed</th><th>Power Loss</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    
+    <script src="js/data.js"></script>
+</body>
+</html>

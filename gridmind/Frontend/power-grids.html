@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Power - Power Grids</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="power-grids.html" class="active">Power Grids</a></li>
+                <li><a href="distribution-areas.html">Distribution Areas</a></li>
+                <li><a href="consumers.html">Consumers</a></li>
+                <li><a href="connections.html">Connections</a></li>
+                <li><a href="meter-readings.html">Meter Readings</a></li>
+                <li><a href="bills.html">Bills</a></li>
+                <li><a href="analytics.html">Analytics</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Power Grids</h1>
+                <button class="btn-add"><span>+</span> Add Grid</button>
+            </div>
+            <div class="table-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Grid Name</th><th>Location</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>Northern Grid</td><td>North Region</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
+                        <tr><td>2</td><td>Southern Grid</td><td>South Region</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
+                        <tr><td>3</td><td>Eastern Grid</td><td>East Region</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <script src="js/data.js"></script>
+</body>
+</html>

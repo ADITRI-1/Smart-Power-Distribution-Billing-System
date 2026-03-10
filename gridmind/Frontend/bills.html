@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Power - Bills</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="power-grids.html">Power Grids</a></li>
+                <li><a href="distribution-areas.html">Distribution Areas</a></li>
+                <li><a href="consumers.html">Consumers</a></li>
+                <li><a href="connections.html">Connections</a></li>
+                <li><a href="meter-readings.html">Meter Readings</a></li>
+                <li><a href="bills.html" class="active">Bills</a></li>
+                <li><a href="analytics.html">Analytics</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Bills</h1>
+            </div>
+            <div class="table-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Consumer ID</th><th>Connection ID</th><th>Month</th><th>Units</th><th>Amount</th><th>Status</th><th>Due Date</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>1</td><td>1</td><td>2025-01</td><td>350</td><td>₹2,450</td><td><span class="badge badge-blue">Paid</span></td><td>2025-02-20</td><td></td></tr>
+                        <tr><td>2</td><td>2</td><td>2</td><td>2025-01</td><td>800</td><td>₹8,800</td><td><span class="badge badge-blue">Paid</span></td><td>2025-02-20</td><td></td></tr>
+                        <tr><td>3</td><td>3</td><td>3</td><td>2025-01</td><td>200</td><td>₹1,200</td><td><span class="badge badge-gray">Unpaid</span></td><td>2025-02-20</td><td><span class="action-pay">✔ Pay</span></td></tr>
+                        <tr><td>4</td><td>1</td><td>1</td><td>2025-02</td><td>330</td><td>₹2,310</td><td><span class="badge badge-gray">Unpaid</span></td><td>2025-03-20</td><td><span class="action-pay">✔ Pay</span></td></tr>
+                        <tr><td>5</td><td>5</td><td>5</td><td>2025-01</td><td>1200</td><td>₹14,400</td><td><span class="badge badge-red">Overdue</span></td><td>2025-02-20</td><td><span class="action-pay">✔ Pay</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <script src="js/data.js"></script>
+</body>
+</html>

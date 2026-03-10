@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Power - Distribution Areas</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="power-grids.html">Power Grids</a></li>
+                <li><a href="distribution-areas.html" class="active">Distribution Areas</a></li>
+                <li><a href="consumers.html">Consumers</a></li>
+                <li><a href="connections.html">Connections</a></li>
+                <li><a href="meter-readings.html">Meter Readings</a></li>
+                <li><a href="bills.html">Bills</a></li>
+                <li><a href="analytics.html">Analytics</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Distribution Areas</h1>
+                <button class="btn-add"><span>+</span> Add Area</button>
+            </div>
+            <div class="table-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Zone</th><th>City</th><th>Grid ID</th><th>POC</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>Zone A</td><td>Springfield</td><td>1</td><td>John Smith</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
+                        <tr><td>2</td><td>Zone B</td><td>Shelbyville</td><td>1</td><td>Jane Doe</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
+                        <tr><td>3</td><td>Zone C</td><td>Capital City</td><td>2</td><td>Bob Wilson</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
+                        <tr><td>4</td><td>Zone D</td><td>Ogdenville</td><td>3</td><td>Alice Brown</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <script src="js/data.js"></script>
+</body>
+</html>

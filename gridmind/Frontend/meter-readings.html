@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Power - Meter Readings</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="power-grids.html">Power Grids</a></li>
+                <li><a href="distribution-areas.html">Distribution Areas</a></li>
+                <li><a href="consumers.html">Consumers</a></li>
+                <li><a href="connections.html">Connections</a></li>
+                <li><a href="meter-readings.html" class="active">Meter Readings</a></li>
+                <li><a href="bills.html">Bills</a></li>
+                <li><a href="analytics.html">Analytics</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Meter Readings</h1>
+                <button class="btn-add"><span>+</span> Add Reading</button>
+            </div>
+            <div class="table-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Connection ID</th><th>Billing Month</th><th>Previous</th><th>Current</th><th>Units Consumed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>1</td><td>2025-01</td><td>1000</td><td>1350</td><td class="text-green">350</td></tr>
+                        <tr><td>2</td><td>2</td><td>2025-01</td><td>5000</td><td>5800</td><td class="text-green">800</td></tr>
+                        <tr><td>3</td><td>3</td><td>2025-01</td><td>2000</td><td>2200</td><td class="text-green">200</td></tr>
+                        <tr><td>4</td><td>1</td><td>2025-02</td><td>1350</td><td>1680</td><td class="text-green">330</td></tr>
+                        <tr><td>5</td><td>2</td><td>2025-02</td><td>5800</td><td>6550</td><td class="text-green">750</td></tr>
+                        <tr><td>6</td><td>5</td><td>2025-01</td><td>0</td><td>1200</td><td class="text-green">1200</td></tr>
+                        <tr><td>7</td><td>5</td><td>2025-02</td><td>1200</td><td>2500</td><td class="text-green">1300</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <script src="js/data.js"></script>
+</body>
+</html>
