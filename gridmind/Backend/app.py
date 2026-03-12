@@ -8,30 +8,23 @@ import user_dao
 app = Flask(__name__)
 CORS(app)
 
-# --- AUTO DATABASE SETUP & DUMMY DATA ---
 def init_database():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # 1. Add Dummy Admin: gaurav / admin
         cur.execute("SELECT COUNT(*) FROM admin_users WHERE username = 'gaurav'")
         if cur.fetchone()[0] == 0:
             admin_hash = generate_password_hash('admin')
-            cur.execute("INSERT INTO admin_users (full_name, username, password_hash) VALUES (%s, %s, %s)", 
-                        ('Gaurav Admin', 'gaurav', admin_hash))
+            cur.execute("INSERT INTO admin_users (full_name, username, password_hash) VALUES (%s, %s, %s)", ('Gaurav Admin', 'gaurav', admin_hash))
         
-        # 2. Add Dummy Consumer: gaurav / consumer (Linked to consumer_id 1002)
         cur.execute("SELECT COUNT(*) FROM consumer_users WHERE username = 'gaurav'")
         if cur.fetchone()[0] == 0:
             consumer_hash = generate_password_hash('consumer')
-            cur.execute("INSERT INTO consumer_users (consumer_id, username, password_hash) VALUES (%s, %s, %s)", 
-                        (1002, 'gaurav', consumer_hash))
-        
+            cur.execute("INSERT INTO consumer_users (consumer_id, username, password_hash) VALUES (%s, %s, %s)", (1002, 'gaurav', consumer_hash))
         conn.commit()
-        print("Database authentication tables perfectly initialized with dummy data!")
     except Exception as e:
         conn.rollback()
-        print(f"Init DB Error: Ensure you ran the latest SQL script! Error: {e}")
+        print(f"Init DB Error: {e}")
     finally:
         cur.close()
         conn.close()
@@ -41,27 +34,16 @@ def init_database():
 def signup():
     data = request.json
     hashed_pw = generate_password_hash(data.get('password'))
-    # All web signups default to consumers
     success, msg = user_dao.create_consumer_user(data.get('fullname'), data.get('username'), hashed_pw)
     return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
 
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    login_type = data.get('loginType') # Determines which table to query
-
-    user_data = user_dao.get_user_login_data(username, login_type)
-
-    if user_data and check_password_hash(user_data['password_hash'], password):
-        return jsonify({
-            "message": "Login successful", 
-            "role": user_data['role'], 
-            "consumer_id": user_data.get('consumer_id')
-        }), 200
+    user_data = user_dao.get_user_login_data(data.get('username'), data.get('loginType'))
+    if user_data and check_password_hash(user_data['password_hash'], data.get('password')):
+        return jsonify({"message": "Login successful", "role": user_data['role'], "consumer_id": user_data.get('consumer_id')}), 200
     return jsonify({"error": "Invalid username or password"}), 401
-
 
 # --- ADMIN DASHBOARD ROUTES ---
 @app.route('/api/grids', methods=['GET'])
@@ -79,13 +61,17 @@ def get_bills(): return jsonify(dao.get_bills())
 @app.route('/api/analytics', methods=['GET'])
 def get_analytics(): return jsonify({"top_areas": dao.get_analytics_top_areas(), "power_loss": dao.get_analytics_power_loss()})
 
+# NEW: Admin route to view deep consumer details
+@app.route('/api/consumer/<int:consumer_id>/details', methods=['GET'])
+def get_consumer_details(consumer_id):
+    data = dao.get_consumer_full_details(consumer_id)
+    return jsonify(data) if data else (jsonify({"error": "Not found"}), 404)
+
 # --- CONSUMER DASHBOARD ROUTES ---
 @app.route('/api/consumer/<int:consumer_id>/dashboard', methods=['GET'])
 def get_consumer_dash(consumer_id): return jsonify(dao.get_consumer_dashboard(consumer_id))
-
 @app.route('/api/consumer/<int:consumer_id>/connections', methods=['GET'])
 def get_consumer_conn(consumer_id): return jsonify(dao.get_consumer_connections(consumer_id))
-
 @app.route('/api/consumer/<int:consumer_id>/bills', methods=['GET'])
 def get_consumer_bills(consumer_id): return jsonify(dao.get_consumer_bills(consumer_id))
 

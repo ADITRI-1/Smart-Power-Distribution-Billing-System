@@ -35,16 +35,42 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td>1</td><td>Michael Johnson</td><td>123 Main St</td><td>35</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
-                        <tr><td>2</td><td>Sarah Williams</td><td>456 Oak Ave</td><td>42</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
-                        <tr><td>3</td><td>David Lee</td><td>789 Pine Rd</td><td>28</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
-                        <tr><td>4</td><td>Emma Davis</td><td>321 Elm St</td><td>55</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
-                        <tr><td>5</td><td>James Brown</td><td>654 Maple Dr</td><td>31</td><td class="action-icons"><span class="action-edit">✎</span> <span class="action-delete">🗑️</span></td></tr>
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
+
+            <div class="modal-overlay" id="consumerModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Consumer Profile & Grid Links</h2>
+                        <span class="close-btn" onclick="closeModal()">✕</span>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;" id="modalBasicInfo">
+                        </div>
+
+                    <h3 style="font-size: 1rem; margin-bottom: 1rem; color: var(--text-main);">Linked Meters & Grid Data</h3>
+                    <div class="table-card" style="box-shadow: none; margin-bottom: 0;">
+                        <table class="data-table" id="modalConnectionsTable">
+                            <thead>
+                                <tr>
+                                    <th>Conn ID</th><th>Grid Source</th><th>Zone/City</th><th>Load</th><th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
     <script src="js/data.js"></script>
+    <script>
+        function closeModal() {
+            document.getElementById('consumerModal').style.display = 'none';
+        }
+    </script>
 </body>
 </html>
