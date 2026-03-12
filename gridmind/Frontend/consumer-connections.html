@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Power - My Meters</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="consumer-dashboard.html">My Dashboard</a></li>
+                <li><a href="consumer-connections.html" class="active">My Smart Meters</a></li>
+                <li><a href="consumer-bills.html">My Bills & Payments</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>My Smart Meters</h1>
+            </div>
+            <div class="table-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Connection ID</th><th>Address</th><th>Type</th><th>Load (kW)</th><th>Install Date</th><th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <script src="js/data.js"></script>
+</body>
+</html>

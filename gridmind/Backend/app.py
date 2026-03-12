@@ -1,104 +1,101 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
+from database import get_db_connection
 import dao
 import user_dao 
 
 app = Flask(__name__)
 CORS(app)
 
-# ==========================================
-# --- AUTH ROUTES (Login & Signup) ---
-# ==========================================
+# --- AUTO DATABASE SETUP & DUMMY DATA ---
+def init_database():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # 1. Add Dummy Admin: gaurav / admin
+        cur.execute("SELECT COUNT(*) FROM admin_users WHERE username = 'gaurav'")
+        if cur.fetchone()[0] == 0:
+            admin_hash = generate_password_hash('admin')
+            cur.execute("INSERT INTO admin_users (full_name, username, password_hash) VALUES (%s, %s, %s)", 
+                        ('Gaurav Admin', 'gaurav', admin_hash))
+        
+        # 2. Add Dummy Consumer: gaurav / consumer (Linked to consumer_id 1002)
+        cur.execute("SELECT COUNT(*) FROM consumer_users WHERE username = 'gaurav'")
+        if cur.fetchone()[0] == 0:
+            consumer_hash = generate_password_hash('consumer')
+            cur.execute("INSERT INTO consumer_users (consumer_id, username, password_hash) VALUES (%s, %s, %s)", 
+                        (1002, 'gaurav', consumer_hash))
+        
+        conn.commit()
+        print("Database authentication tables perfectly initialized with dummy data!")
+    except Exception as e:
+        conn.rollback()
+        print(f"Init DB Error: Ensure you ran the latest SQL script! Error: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+# --- AUTH ROUTES ---
 @app.route('/api/signup', methods=['POST'])
 def signup():
     data = request.json
-    full_name = data.get('fullname')
-    username = data.get('username')
-    password = data.get('password')
-
-    if not all([full_name, username, password]):
-        return jsonify({"error": "Missing data"}), 400
-
-    hashed_password = generate_password_hash(password)
-    success, message = user_dao.create_user(full_name, username, hashed_password)
-
-    if success:
-        return jsonify({"message": message}), 201
-    elif "exists" in message:
-        return jsonify({"error": message}), 409
-    else:
-        return jsonify({"error": message}), 500
+    hashed_pw = generate_password_hash(data.get('password'))
+    # All web signups default to consumers
+    success, msg = user_dao.create_consumer_user(data.get('fullname'), data.get('username'), hashed_pw)
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
 
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
+    login_type = data.get('loginType') # Determines which table to query
 
-    if not username or not password:
-         return jsonify({"error": "Missing credentials"}), 400
+    user_data = user_dao.get_user_login_data(username, login_type)
 
-    stored_hash = user_dao.get_user_password_hash(username)
+    if user_data and check_password_hash(user_data['password_hash'], password):
+        return jsonify({
+            "message": "Login successful", 
+            "role": user_data['role'], 
+            "consumer_id": user_data.get('consumer_id')
+        }), 200
+    return jsonify({"error": "Invalid username or password"}), 401
 
-    if stored_hash and check_password_hash(stored_hash, password):
-        return jsonify({"message": "Login successful"}), 200
-    else:
-        return jsonify({"error": "Invalid username or password"}), 401
 
-
-# ==========================================
-# --- DATA FETCH ROUTES (Dashboard) ---
-# ==========================================
+# --- ADMIN DASHBOARD ROUTES ---
 @app.route('/api/grids', methods=['GET'])
 def get_grids(): return jsonify(dao.get_grids())
-
 @app.route('/api/areas', methods=['GET'])
 def get_areas(): return jsonify(dao.get_areas())
-
 @app.route('/api/consumers', methods=['GET'])
 def get_consumers(): return jsonify(dao.get_consumers())
-
 @app.route('/api/connections', methods=['GET'])
 def get_connections(): return jsonify(dao.get_connections())
-
 @app.route('/api/readings', methods=['GET'])
 def get_readings(): return jsonify(dao.get_readings())
-
 @app.route('/api/bills', methods=['GET'])
 def get_bills(): return jsonify(dao.get_bills())
-
 @app.route('/api/analytics', methods=['GET'])
-def get_analytics():
-    return jsonify({
-        "top_areas": dao.get_analytics_top_areas(),
-        "power_loss": dao.get_analytics_power_loss()
-    })
+def get_analytics(): return jsonify({"top_areas": dao.get_analytics_top_areas(), "power_loss": dao.get_analytics_power_loss()})
 
+# --- CONSUMER DASHBOARD ROUTES ---
+@app.route('/api/consumer/<int:consumer_id>/dashboard', methods=['GET'])
+def get_consumer_dash(consumer_id): return jsonify(dao.get_consumer_dashboard(consumer_id))
 
-# ==========================================
-# --- DELETE ROUTES ---
-# ==========================================
+@app.route('/api/consumer/<int:consumer_id>/connections', methods=['GET'])
+def get_consumer_conn(consumer_id): return jsonify(dao.get_consumer_connections(consumer_id))
+
+@app.route('/api/consumer/<int:consumer_id>/bills', methods=['GET'])
+def get_consumer_bills(consumer_id): return jsonify(dao.get_consumer_bills(consumer_id))
+
+# --- ADD & DELETE ROUTES ---
 @app.route('/api/delete/<table_name>/<int:record_id>', methods=['DELETE'])
 def delete_record(table_name, record_id):
-    pk_map = {
-        'power_grid': 'grid_id',
-        'distribution_area': 'area_id',
-        'consumer': 'consumer_id',
-        'connection': 'connection_id'
-    }
-    
-    if table_name not in pk_map:
-        return jsonify({"error": "Invalid table"}), 400
-        
-    success, msg = dao.delete_record(table_name, pk_map[table_name], record_id)
-    if success: return jsonify({"message": "Deleted successfully"}), 200
-    return jsonify({"error": msg}), 500
+    pk_map = {'power_grid': 'grid_id', 'distribution_area': 'area_id', 'consumer': 'consumer_id', 'connection': 'connection_id'}
+    success, msg = dao.delete_record(table_name, pk_map.get(table_name), record_id)
+    return jsonify({"message": "Deleted"}), 200 if success else 500
 
-
-# ==========================================
-# --- ADD ROUTES ---
-# ==========================================
 @app.route('/api/grids', methods=['POST'])
 def add_grid():
     data = request.json
@@ -111,6 +108,6 @@ def add_consumer():
     success, msg = dao.add_consumer(data['id'], data['name'], data['address'], data['age'])
     return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
 
-
 if __name__ == '__main__':
+    init_database()
     app.run(debug=True, port=5000)

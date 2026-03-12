@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Power - My Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="consumer-dashboard.html" class="active">My Dashboard</a></li>
+                <li><a href="consumer-connections.html">My Smart Meters</a></li>
+                <li><a href="consumer-bills.html">My Bills & Payments</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="main-header">
+                <h1>My Dashboard</h1>
+                <a href="index.html" style="color: var(--text-muted); text-decoration: none;">Logout</a>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-title">Active Smart Meters</div>
+                    <div class="stat-value" id="stat-meters">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Pending Bills</div>
+                    <div class="stat-value" id="stat-unpaid">0</div>
+                </div>
+                <div class="stat-card" style="border-left: 4px solid #EF4444;">
+                    <div class="stat-title">Total Amount Due</div>
+                    <div class="stat-value text-red" id="stat-due">₹0</div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="js/data.js"></script>
+</body>
+</html>

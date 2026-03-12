@@ -3,30 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Power - Login</title>
+    <title>Smart Power - Welcome</title>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .portal-selection { text-align: center; }
+        .logo-container { font-size: 3.5rem; margin-bottom: 1rem; }
+        .portal-btn-group { display: flex; flex-direction: column; gap: 1rem; margin-top: 2rem; }
+        .btn-selection { padding: 1rem; border: 2px solid var(--primary-blue); border-radius: 8px; background: transparent; color: var(--primary-blue); font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 1rem;}
+        .btn-selection:hover { background: var(--primary-blue); color: white; }
+    </style>
 </head>
 <body>
     <div class="auth-container">
-        <div class="auth-card">
-            <h2>Smart Power</h2>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required placeholder="Enter your username">
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required placeholder="Enter your password">
-                </div>
-                <button type="submit" class="btn-primary">Sign In</button>
-            </form>
-            <div class="auth-links">
-                <p>Don't have an account? <a href="signup.html">Sign up here</a></p>
+        <div class="auth-card portal-selection">
+            <div class="logo-container">⚡</div>
+            <h2>Smart Power Analytics</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Please select your portal to continue</p>
+            
+            <div class="portal-btn-group">
+                <button onclick="window.location.href='login-admin.html'" class="btn-selection">Admin Portal Login</button>
+                <button onclick="window.location.href='login-consumer.html'" class="btn-selection">Consumer Portal Login</button>
             </div>
         </div>
     </div>
-
-    <script src="js/auth.js"></script>
 </body>
 </html>
