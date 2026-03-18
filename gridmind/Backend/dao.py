@@ -130,3 +130,100 @@ def add_grid(grid_id, grid_name, location):
 
 def add_consumer(consumer_id, name, address, age):
     return execute_modify("INSERT INTO consumer (consumer_id, full_name, permanent_address, age) VALUES (%s, %s, %s, %s)", (consumer_id, name, address, age))
+
+# ── APPLICATION 1: generate_bill_for_reading ────────────────────────
+from datetime import date, timedelta
+
+def generate_bill_for_reading(reading_id, connection_id, billing_month,
+                               previous_reading, current_reading, bill_id):
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Step 1: validate connection is Active
+        cur.execute("SELECT connection_id, consumer_id, connection_type, status FROM connection WHERE connection_id = %s", (connection_id,))
+        conn_row = cur.fetchone()
+        if not conn_row:
+            raise ValueError(f"Connection {connection_id} does not exist.")
+        if conn_row['status'] != 'Active':
+            raise ValueError(f"Connection {connection_id} is not Active.")
+
+        consumer_id = conn_row['consumer_id']
+        connection_type = conn_row['connection_type']
+        units_consumed = current_reading - previous_reading
+
+        # Step 2: no duplicate reading for same month
+        cur.execute("SELECT 1 FROM meter_reading WHERE connection_id = %s AND billing_month = %s", (connection_id, billing_month))
+        if cur.fetchone():
+            raise ValueError(f"Reading for {billing_month} already exists.")
+
+        # Step 3: insert meter reading
+        cur.execute("INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed))
+
+        # Step 4: find tariff slab
+        cur.execute("SELECT slab_id, rate_per_unit, fixed_charge FROM tariff_slab WHERE LOWER(consumer_category) = LOWER(%s) AND %s BETWEEN unit_from AND unit_to AND effective_to IS NULL LIMIT 1",
+                    (connection_type, units_consumed))
+        slab = cur.fetchone()
+        if not slab:
+            raise ValueError(f"No tariff slab found for {connection_type}, {units_consumed} units.")
+
+        # Step 5: calculate + insert bill
+        bill_amount = round(units_consumed * float(slab['rate_per_unit']) + float(slab['fixed_charge']), 2)
+        due_date = date.today() + timedelta(days=15)
+        cur.execute("INSERT INTO bill (bill_id, consumer_id, connection_id, slab_id, billing_month, units_consumed, amount, payment_status, generated_on, due_date) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (bill_id, consumer_id, connection_id, slab['slab_id'], billing_month, units_consumed, bill_amount, 'Unpaid', date.today(), due_date))
+
+        conn.commit()
+        return {'success': True, 'bill_amount': bill_amount, 'due_date': str(due_date),
+                'message': f'Bill of Rs.{bill_amount} generated for {billing_month}.'}
+    except ValueError as ve:
+        conn.rollback()
+        return {'success': False, 'message': str(ve)}
+    except Exception as e:
+        conn.rollback()
+        return {'success': False, 'message': f'DB Error: {str(e)}'}
+    finally:
+        cur.close()
+        conn.close()
+
+# ── APPLICATION 2: get_consumer_bill_analysis ───────────────────────
+def get_consumer_bill_analysis(consumer_id):
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT consumer_id, full_name, permanent_address, age FROM consumer WHERE consumer_id = %s", (consumer_id,))
+        consumer = cur.fetchone()
+        if not consumer:
+            return {'success': False, 'message': 'Consumer not found.'}
+
+        cur.execute("""SELECT b.bill_id, b.billing_month, b.units_consumed, b.amount,
+                              b.payment_status, TO_CHAR(b.due_date,'YYYY-MM-DD') AS due_date,
+                              ts.rate_per_unit, ts.consumer_category
+                       FROM bill b JOIN tariff_slab ts ON b.slab_id = ts.slab_id
+                       WHERE b.consumer_id = %s ORDER BY b.billing_month DESC""", (consumer_id,))
+        bill_history = cur.fetchall()
+
+        cur.execute("""SELECT COUNT(*) AS total_bills, COALESCE(SUM(amount),0) AS total_spend,
+                              COALESCE(AVG(amount),0) AS avg_bill, COALESCE(MAX(amount),0) AS highest_bill,
+                              COALESCE(MIN(amount),0) AS lowest_bill, COALESCE(SUM(units_consumed),0) AS total_units,
+                              COUNT(*) FILTER (WHERE payment_status='Overdue') AS overdue_count,
+                              COUNT(*) FILTER (WHERE payment_status='Unpaid')  AS unpaid_count
+                       FROM bill WHERE consumer_id = %s""", (consumer_id,))
+        stats = cur.fetchone()
+
+        cur.execute("""SELECT conn.connection_id, conn.connection_type,
+                              SUM(mr.units_consumed) AS total_units, COUNT(mr.reading_id) AS reading_count
+                       FROM connection conn JOIN meter_reading mr ON conn.connection_id = mr.connection_id
+                       WHERE conn.consumer_id = %s GROUP BY conn.connection_id, conn.connection_type
+                       ORDER BY total_units DESC""", (consumer_id,))
+        breakdown = cur.fetchall()
+
+        return {'success': True, 'consumer': dict(consumer),
+                'bill_history': [dict(b) for b in bill_history],
+                'stats': dict(stats),
+                'consumption_breakdown': [dict(c) for c in breakdown]}
+    except Exception as e:
+        return {'success': False, 'message': f'DB Error: {str(e)}'}
+    finally:
+        cur.close()
+        conn.close()

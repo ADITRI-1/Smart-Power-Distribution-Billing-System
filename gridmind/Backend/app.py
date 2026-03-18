@@ -93,6 +93,24 @@ def add_consumer():
     data = request.json
     success, msg = dao.add_consumer(data['id'], data['name'], data['address'], data['age'])
     return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
+# For triggers Application
+@app.route('/api/readings', methods=['POST'])
+def add_reading():
+    data = request.json
+    result = dao.generate_bill_for_reading(
+        reading_id=data['reading_id'],
+        connection_id=data['connection_id'],
+        billing_month=data['billing_month'],
+        previous_reading=data['previous_reading'],
+        current_reading=data['current_reading'],
+        bill_id=data['bill_id']
+    )
+    return jsonify(result), 201 if result['success'] else 400
+
+@app.route('/api/consumer/<int:consumer_id>/analysis', methods=['GET'])
+def get_bill_analysis(consumer_id):
+    result = dao.get_consumer_bill_analysis(consumer_id)
+    return jsonify(result), 200 if result['success'] else 404
 
 if __name__ == '__main__':
     init_database()
