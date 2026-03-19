@@ -270,16 +270,13 @@ INSERT INTO meter_reading (
     current_reading,
     units_consumed
 )
-VALUES (
-    4,
-    5001,
-    '2025-12',
-    1200,
-    1415,
-    1415 - 1200
+SELECT 4, 5001, '2026-01', 1415, 1500, 85
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM meter_reading
+    WHERE connection_id = 5001
+      AND billing_month = '2026-01'
 );
-
-
 -- 21) Deactivate a consumer connection
 UPDATE connection
 SET status = 'Inactive'
