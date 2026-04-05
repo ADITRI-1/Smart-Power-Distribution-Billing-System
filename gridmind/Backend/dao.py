@@ -1,5 +1,7 @@
 from database import get_db_connection
 from psycopg2.extras import RealDictCursor
+import psycopg2
+import psycopg2.extensions
 
 def execute_query(query, params=None, fetchall=True):
     conn = get_db_connection()
@@ -223,6 +225,127 @@ def get_consumer_bill_analysis(consumer_id):
                 'stats': dict(stats),
                 'consumption_breakdown': [dict(c) for c in breakdown]}
     except Exception as e:
+        return {'success': False, 'message': f'DB Error: {str(e)}'}
+    finally:
+        cur.close()
+        conn.close()
+# ── TASK 6 FUNCTION 1: pay_bill_transaction() ─────────────────────
+# PURPOSE : Demonstrates an explicit DB transaction from Python.
+#           Uses REPEATABLE READ isolation level to prevent dirty reads.
+#           Acquires a row-level lock with FOR UPDATE so no other
+#           session can modify the bill mid-transaction.
+#           If bill is already paid → clean rollback with clear message.
+# MAPS TO : Consumer Portal → Pay Bill button
+# ─────────────────────────────────────────────────────────────────
+
+def pay_bill_transaction(bill_id):
+    conn = get_db_connection()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Set isolation level BEFORE any query — prevents dirty reads
+        conn.set_isolation_level(
+            psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ
+        )
+
+        # Step 1: Lock the row — no other transaction can update
+        #         this bill until we COMMIT or ROLLBACK
+        cur.execute(
+            "SELECT bill_id, amount, payment_status FROM bill "
+            "WHERE bill_id = %s FOR UPDATE",
+            (bill_id,)
+        )
+        bill = cur.fetchone()
+
+        if not bill:
+            raise ValueError(f"Bill {bill_id} not found.")
+        if bill['payment_status'] == 'Paid':
+            raise ValueError(f"Bill {bill_id} is already paid. No changes made.")
+
+        # Step 2: Mark as Paid with exact timestamp
+        cur.execute(
+            "UPDATE bill SET payment_status = 'Paid', paid_on = NOW() "
+            "WHERE bill_id = %s",
+            (bill_id,)
+        )
+
+        conn.commit()  # ← COMMIT: change is now permanent
+        return {
+            'success'  : True,
+            'bill_id'  : bill_id,
+            'amount'   : float(bill['amount']),
+            'message'  : f"Bill {bill_id} of Rs.{bill['amount']} marked as Paid."
+        }
+
+    except ValueError as ve:
+        conn.rollback()  # ← ROLLBACK: undo any partial changes
+        return {'success': False, 'message': str(ve)}
+    except Exception as e:
+        conn.rollback()
+        return {'success': False, 'message': f'DB Error: {str(e)}'}
+    finally:
+        cur.close()
+        conn.close()
+
+
+# ── TASK 6 FUNCTION 2: transfer_connection_area() ─────────────────
+# PURPOSE : Demonstrates a multi-step transaction with SAVEPOINT.
+#           Moves a connection from one distribution area to another.
+#           If the new area does not exist → rollback to savepoint,
+#           keeping the connection's load update but undoing the
+#           area change. Shows partial rollback in Python.
+# MAPS TO : Admin Panel → Edit Connection
+# ─────────────────────────────────────────────────────────────────
+
+def transfer_connection_area(connection_id, new_area_id, new_load):
+    conn = get_db_connection()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        conn.set_isolation_level(
+            psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED
+        )
+
+        # Step 1: Update the load assignment (valid change)
+        cur.execute(
+            "UPDATE connection SET load_assign = %s WHERE connection_id = %s",
+            (new_load, connection_id)
+        )
+
+        # Create a savepoint after the valid update
+        cur.execute("SAVEPOINT sp_load_updated")
+
+        # Step 2: Check if new_area_id actually exists
+        cur.execute(
+            "SELECT area_id FROM distribution_area WHERE area_id = %s",
+            (new_area_id,)
+        )
+        area = cur.fetchone()
+
+        if not area:
+            # Rollback only the area change, keep the load update
+            cur.execute("ROLLBACK TO SAVEPOINT sp_load_updated")
+            conn.commit()
+            return {
+                'success' : False,
+                'message' : f"Area {new_area_id} not found. "
+                            f"Load updated to {new_load} but area unchanged.",
+                'partial' : True
+            }
+
+        # Step 3: Move the connection to the new area
+        cur.execute(
+            "UPDATE connection SET area_id = %s WHERE connection_id = %s",
+            (new_area_id, connection_id)
+        )
+
+        conn.commit()
+        return {
+            'success' : True,
+            'message' : f"Connection {connection_id} moved to area "
+                        f"{new_area_id} with load {new_load}."
+        }
+
+    except Exception as e:
+        conn.rollback()
         return {'success': False, 'message': f'DB Error: {str(e)}'}
     finally:
         cur.close()

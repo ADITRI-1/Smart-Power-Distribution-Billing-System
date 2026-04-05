@@ -111,6 +111,23 @@ def add_reading():
 def get_bill_analysis(consumer_id):
     result = dao.get_consumer_bill_analysis(consumer_id)
     return jsonify(result), 200 if result['success'] else 404
+    
+# ──  Pay a bill (transaction demo) ───
+@app.route('/api/bills/<int:bill_id>/pay', methods=['POST'])
+def pay_bill(bill_id):
+    result = dao.pay_bill_transaction(bill_id)
+    return jsonify(result), 200 if result['success'] else 400
+
+# ── Transfer connection area (savepoint demo) ──
+@app.route('/api/connections/<int:connection_id>/transfer', methods=['POST'])
+def transfer_connection(connection_id):
+    data = request.json
+    result = dao.transfer_connection_area(
+        connection_id,
+        data.get('new_area_id'),
+        data.get('new_load')
+    )
+    return jsonify(result), 200 if result['success'] else 400
 
 if __name__ == '__main__':
     init_database()
