@@ -5,13 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Power - Dashboard</title>
     <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="dashboard-layout">
         <aside class="sidebar">
-            <div class="sidebar-brand">
-                ⚡ Smart Power
-            </div>
+            <div class="sidebar-brand">⚡ Smart Power</div>
             <ul class="sidebar-nav">
                 <li><a href="dashboard.html" class="active">Dashboard</a></li>
                 <li><a href="power-grids.html">Power Grids</a></li>
@@ -33,28 +32,44 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-title">Power Grids</div>
-                    <div class="stat-value">2</div>
+                    <div class="stat-value" id="dash-grids">...</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-title">Distribution Areas</div>
-                    <div class="stat-value">4</div>
+                    <div class="stat-value" id="dash-areas">...</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-title">Consumers</div>
-                    <div class="stat-value">4</div>
+                    <div class="stat-value" id="dash-consumers">...</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-title">Connections</div>
-                    <div class="stat-value">4</div>
+                    <div class="stat-value" id="dash-conns">...</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-title">Units Supplied</div>
-                    <div class="stat-value">325,500</div>
+                    <div class="stat-value" id="dash-units">...</div>
                 </div>
             </div>
 
-            
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>Area-wise Consumption</h3>
+                    <div class="chart-placeholder" style="background: white; border: none; padding: 1rem;">
+                        <canvas id="dashPieChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>Supply vs Consumption</h3>
+                    <div class="chart-placeholder" style="background: white; border: none; padding: 1rem;">
+                        <canvas id="dashBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
+
+    <script src="js/common.js"></script>
+    <script src="js/dashboard.js"></script>
 </body>
 </html>

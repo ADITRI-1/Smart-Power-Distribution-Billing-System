@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Power - Bills</title>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .filter-bar {
+            display: flex; gap: 1rem; margin-bottom: 1.5rem; background: white; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);
+        }
+        .filter-bar input, .filter-bar select {
+            padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; flex: 1; outline: none;
+        }
+        .filter-bar input:focus, .filter-bar select:focus { border-color: var(--primary-blue); }
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { background-color: #f9fafb; color: var(--primary-blue); }
+    </style>
 </head>
 <body>
     <div class="dashboard-layout">
@@ -24,26 +35,42 @@
 
         <main class="main-content">
             <div class="page-header">
-                <h1>Bills</h1>
+                <h1>All Bills</h1>
             </div>
+            
+            <div class="filter-bar">
+                <input type="text" id="searchConn" placeholder="Search Connection ID...">
+                <input type="month" id="searchMonth" title="Filter by Month">
+                <select id="searchStatus">
+                    <option value="">All Statuses</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Overdue">Overdue</option>
+                </select>
+                <button class="btn-primary" style="margin-top: 0; width: auto;" onclick="renderBills()">Filter</button>
+            </div>
+
             <div class="table-card">
-                <table class="data-table">
+                <table class="data-table" id="billsTable">
                     <thead>
                         <tr>
-                            <th>ID</th><th>Consumer ID</th><th>Connection ID</th><th>Month</th><th>Units</th><th>Amount</th><th>Status</th><th>Due Date</th><th>Actions</th>
+                            <th class="sortable" data-sort="bill_id">Bill ID ↕</th>
+                            <th class="sortable" data-sort="connection_id">Conn ID ↕</th>
+                            <th class="sortable" data-sort="month">Month ↕</th>
+                            <th class="sortable" data-sort="units">Units ↕</th>
+                            <th class="sortable" data-sort="amount">Amount ↕</th>
+                            <th>Status</th>
+                            <th class="sortable" data-sort="due_date">Due Date ↕</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td>1</td><td>1</td><td>1</td><td>2025-01</td><td>350</td><td>₹2,450</td><td><span class="badge badge-blue">Paid</span></td><td>2025-02-20</td><td></td></tr>
-                        <tr><td>2</td><td>2</td><td>2</td><td>2025-01</td><td>800</td><td>₹8,800</td><td><span class="badge badge-blue">Paid</span></td><td>2025-02-20</td><td></td></tr>
-                        <tr><td>3</td><td>3</td><td>3</td><td>2025-01</td><td>200</td><td>₹1,200</td><td><span class="badge badge-gray">Unpaid</span></td><td>2025-02-20</td><td><span class="action-pay">✔ Pay</span></td></tr>
-                        <tr><td>4</td><td>1</td><td>1</td><td>2025-02</td><td>330</td><td>₹2,310</td><td><span class="badge badge-gray">Unpaid</span></td><td>2025-03-20</td><td><span class="action-pay">✔ Pay</span></td></tr>
-                        <tr><td>5</td><td>5</td><td>5</td><td>2025-01</td><td>1200</td><td>₹14,400</td><td><span class="badge badge-red">Overdue</span></td><td>2025-02-20</td><td><span class="action-pay">✔ Pay</span></td></tr>
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
         </main>
     </div>
-    <script src="js/data.js"></script>
+    <script src="js/common.js"></script>
+    <script src="js/bills.js"></script>
 </body>
 </html>

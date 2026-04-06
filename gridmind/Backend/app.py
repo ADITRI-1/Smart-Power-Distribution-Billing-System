@@ -12,7 +12,6 @@ def init_database():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # Admin Passwords
         cur.execute("SELECT COUNT(*) FROM admin_users")
         if cur.fetchone()[0] == 0:
             admin_hash = generate_password_hash('admin123')
@@ -21,11 +20,9 @@ def init_database():
             cur.execute("INSERT INTO admin_users (full_name, username, password_hash) VALUES (%s, %s, %s)", 
                         ('Gaurav Admin', 'gaurav_admin', admin_hash))
         
-        # Consumer Passwords mapped directly to SQL IDs
         cur.execute("SELECT COUNT(*) FROM consumer_users")
         if cur.fetchone()[0] == 0:
             user_hash = generate_password_hash('user123')
-            # 1001 = Aditri, 1002 = Gaurav, 1003 = Kushagra
             cur.execute("INSERT INTO consumer_users (consumer_id, username, password_hash) VALUES (%s, %s, %s)", (1001, 'aditri', user_hash))
             cur.execute("INSERT INTO consumer_users (consumer_id, username, password_hash) VALUES (%s, %s, %s)", (1002, 'gaurav', user_hash))
             cur.execute("INSERT INTO consumer_users (consumer_id, username, password_hash) VALUES (%s, %s, %s)", (1003, 'kushagra', user_hash))
@@ -52,8 +49,11 @@ def login():
     if user_data and check_password_hash(user_data['password_hash'], data.get('password')):
         return jsonify({"message": "Login successful", "role": user_data['role'], "consumer_id": user_data.get('consumer_id')}), 200
     return jsonify({"error": "Invalid username or password"}), 401
-
-# --- ADMIN ROUTES ---
+# Add this route to app.py under the ADMIN ROUTES section
+@app.route('/api/admin/dashboard', methods=['GET'])
+def admin_dashboard_stats():
+    return jsonify(dao.get_admin_dashboard_stats())
+# --- ADMIN CRUD ROUTES ---
 @app.route('/api/grids', methods=['GET', 'POST'])
 def grids():
     if request.method == 'POST':
@@ -62,8 +62,25 @@ def grids():
         return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
     return jsonify(dao.get_grids())
 
-@app.route('/api/areas', methods=['GET'])
-def get_areas(): return jsonify(dao.get_areas())
+@app.route('/api/grids/<int:grid_id>', methods=['PUT'])
+def edit_grid(grid_id):
+    data = request.json
+    success, msg = dao.update_grid(grid_id, data['name'], data['location'])
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
+
+@app.route('/api/areas', methods=['GET', 'POST'])
+def areas():
+    if request.method == 'POST':
+        data = request.json
+        success, msg = dao.add_area(data['id'], data['grid_id'], data['zone'], data['city'], data['poc'])
+        return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
+    return jsonify(dao.get_areas())
+
+@app.route('/api/areas/<int:area_id>', methods=['PUT'])
+def edit_area(area_id):
+    data = request.json
+    success, msg = dao.update_area(area_id, data['zone'], data['city'], data['grid_id'], data['poc'])
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
 
 @app.route('/api/consumers', methods=['GET', 'POST'])
 def consumers():
@@ -73,11 +90,40 @@ def consumers():
         return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
     return jsonify(dao.get_consumers())
 
-@app.route('/api/connections', methods=['GET'])
-def get_connections(): return jsonify(dao.get_connections())
+@app.route('/api/consumers/<int:consumer_id>', methods=['PUT'])
+def edit_consumer(consumer_id):
+    data = request.json
+    success, msg = dao.update_consumer(consumer_id, data['name'], data['address'], data['age'])
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
 
-@app.route('/api/readings', methods=['GET'])
-def get_readings(): return jsonify(dao.get_readings())
+@app.route('/api/connections', methods=['GET', 'POST'])
+def connections():
+    if request.method == 'POST':
+        data = request.json
+        success, msg = dao.add_connection(data['id'], data['consumer_id'], data['area_id'], data['address'], data['type'], data['load'], data['install_date'], data['status'])
+        return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
+    return jsonify(dao.get_connections())
+
+@app.route('/api/connections/<int:connection_id>', methods=['PUT'])
+def edit_connection(connection_id):
+    data = request.json
+    success, msg = dao.update_connection(connection_id, data['consumer_id'], data['area_id'], data['type'], data['load'], data['status'])
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
+
+# --- VIEW & ANALYTICS ROUTES ---
+@app.route('/api/readings', methods=['GET', 'POST'])
+def readings():
+    if request.method == 'POST':
+        data = request.json
+        # Notice we no longer pass bill_id or reading_id from the frontend!
+        result = dao.add_meter_reading(
+            connection_id=data['connection_id'], 
+            billing_month=data['billing_month'],
+            previous_reading=data['previous_reading'], 
+            current_reading=data['current_reading']
+        )
+        return jsonify(result), 201 if result['success'] else 400
+    return jsonify(dao.get_readings())
 
 @app.route('/api/bills', methods=['GET'])
 def get_bills(): return jsonify(dao.get_bills())
@@ -105,16 +151,7 @@ def get_consumer_bills(consumer_id): return jsonify(dao.get_consumer_bills(consu
 def delete_record(table_name, record_id):
     pk_map = {'power_grid': 'grid_id', 'distribution_area': 'area_id', 'consumer': 'consumer_id', 'connection': 'connection_id'}
     success, msg = dao.delete_record(table_name, pk_map.get(table_name), record_id)
-    return jsonify({"message": "Deleted"}), 200 if success else 500
-
-@app.route('/api/readings', methods=['POST'])
-def add_reading():
-    data = request.json
-    result = dao.generate_bill_for_reading(
-        reading_id=data['reading_id'], connection_id=data['connection_id'], billing_month=data['billing_month'],
-        previous_reading=data['previous_reading'], current_reading=data['current_reading'], bill_id=data['bill_id']
-    )
-    return jsonify(result), 201 if result['success'] else 400
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
 
 @app.route('/api/bills/<int:bill_id>/pay', methods=['POST'])
 def pay_bill(bill_id):
