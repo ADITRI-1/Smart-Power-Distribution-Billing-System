@@ -134,13 +134,14 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_auto_mark_overdue BEFORE INSERT OR UPDATE ON bill
 FOR EACH ROW EXECUTE FUNCTION fn_auto_mark_overdue();
 
--- Trigger B: Continuity Check
+-- Trigger B: Continuity Check (FIXED: Ordering by reading_id instead of date string)
 CREATE OR REPLACE FUNCTION fn_validate_reading_continuity() RETURNS TRIGGER AS $$
 DECLARE
     last_reading NUMERIC;
 BEGIN
+    -- This guarantees it fetches the absolute last reading inserted for this connection
     SELECT current_reading INTO last_reading FROM meter_reading
-    WHERE connection_id = NEW.connection_id ORDER BY TO_DATE(billing_month, 'YYYY-MM') DESC LIMIT 1;
+    WHERE connection_id = NEW.connection_id ORDER BY reading_id DESC LIMIT 1;
 
     IF last_reading IS NOT NULL AND NEW.previous_reading <> last_reading THEN
         RAISE EXCEPTION 'Gap detected: previous_reading (%) does not match last current_reading (%)', NEW.previous_reading, last_reading;
@@ -158,7 +159,7 @@ CREATE TRIGGER trg_validate_reading_continuity BEFORE INSERT ON meter_reading
 FOR EACH ROW EXECUTE FUNCTION fn_validate_reading_continuity();
 
 
--- Trigger C: AUTO GENERATE BILL (This replaces Python logic)
+-- Trigger C: AUTO GENERATE BILL
 CREATE OR REPLACE FUNCTION fn_generate_bill_after_reading() RETURNS TRIGGER AS $$
 DECLARE
     v_consumer_id INT;
@@ -228,39 +229,36 @@ INSERT INTO area_monthly_supply VALUES
 
 
 -- ==========================================
--- 5. 3-MONTH CHRONOLOGICAL METER READINGS
--- (Because of Trigger C, this automatically generates 9 mathematically perfect Bills!)
+-- 5. 4-MONTH CHRONOLOGICAL METER READINGS
 -- ==========================================
 
--- A) Baseline Installations (December 2025) - Units: 0 -> No bills generated
+-- A) Baseline Installations (December 1, 2025)
 INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES
-(nextval('reading_id_seq'), 5001, '2025-12-Base', 0, 0, 0),
-(nextval('reading_id_seq'), 5002, '2025-12-Base', 0, 0, 0),
+(nextval('reading_id_seq'), 5001, '2025-12-Base', 0, 0, 0), 
+(nextval('reading_id_seq'), 5002, '2025-12-Base', 0, 0, 0), 
 (nextval('reading_id_seq'), 5003, '2025-12-Base', 0, 0, 0);
 
--- B) January 2026 Readings -> Generates 3 Bills
+-- B) December 2025 Readings
 INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES
-(nextval('reading_id_seq'), 5001, '2026-01', 0, 145, 145),   -- Aditri: Domestic
-(nextval('reading_id_seq'), 5002, '2026-01', 0, 420, 420),   -- Gaurav: Commercial
-(nextval('reading_id_seq'), 5003, '2026-01', 0, 95, 95);     -- Kushagra: Domestic
+(nextval('reading_id_seq'), 5001, '2025-12', 0, 145, 145),   
+(nextval('reading_id_seq'), 5002, '2025-12', 0, 420, 420),   
+(nextval('reading_id_seq'), 5003, '2025-12', 0, 95, 95);     
 
--- C) February 2026 Readings -> Generates 3 Bills
+-- C) January 2026 Readings 
 INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES
-(nextval('reading_id_seq'), 5001, '2026-02', 145, 280, 135),
-(nextval('reading_id_seq'), 5002, '2026-02', 420, 910, 490),
-(nextval('reading_id_seq'), 5003, '2026-02', 95, 210, 115);
+(nextval('reading_id_seq'), 5001, '2026-01', 145, 280, 135),
+(nextval('reading_id_seq'), 5002, '2026-01', 420, 910, 490),
+(nextval('reading_id_seq'), 5003, '2026-01', 95, 210, 115);
 
--- D) March 2026 Readings -> Generates 3 Bills
+-- D) February 2026 Readings 
 INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES
-(nextval('reading_id_seq'), 5001, '2026-03', 280, 400, 120),
-(nextval('reading_id_seq'), 5002, '2026-03', 910, 1350, 440),
-(nextval('reading_id_seq'), 5003, '2026-03', 210, 305, 95);
+(nextval('reading_id_seq'), 5001, '2026-02', 280, 400, 120),
+(nextval('reading_id_seq'), 5002, '2026-02', 910, 1350, 440),
+(nextval('reading_id_seq'), 5003, '2026-02', 210, 305, 95);
 
 -- ==========================================
 -- 6. SIMULATE PAYMENT HISTORY
 -- ==========================================
--- Automatically mark January and February bills as Paid to simulate past history, 
--- leaving March as 'Unpaid' for the UI.
 UPDATE bill 
 SET payment_status = 'Paid', paid_on = NOW() 
-WHERE billing_month IN ('2026-01', '2026-02');
+WHERE billing_month IN ('2025-12', '2026-01');
