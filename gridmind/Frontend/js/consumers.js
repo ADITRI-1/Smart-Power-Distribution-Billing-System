@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const API_BASE = 'http://localhost:5000/api';
     const tbody = document.querySelector('.data-table tbody');
+    
     fetch(`${API_BASE}/consumers`).then(res => res.json()).then(data => {
         tbody.innerHTML = '';
         data.forEach(row => {
@@ -19,15 +21,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-window.editConsumer = async function(id, cN, cA, cAg) {
-    const name = prompt("Name:", cN), address = prompt("Address:", cA), age = prompt("Age:", cAg);
-    if(name && address && age) {
-        const res = await fetch(`${API_BASE}/consumers/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, address, age}) });
-        if(res.ok) window.location.reload();
-    }
+window.editConsumer = function(id, currentName, currentAddress, currentAge) {
+    const API_BASE = 'http://localhost:5000/api';
+    const modalHtml = `
+        <div id="editConsModal" class="modal-overlay" style="display:flex;">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>Edit Consumer #${id}</h2>
+                    <span class="close-btn" onclick="closeModal('editConsModal')">✕</span>
+                </div>
+                <div class="form-group"><label>Name</label><input type="text" id="e_cons_name" value="${currentName}"></div>
+                <div class="form-group"><label>Address</label><input type="text" id="e_cons_addr" value="${currentAddress}"></div>
+                <div class="form-group"><label>Age</label><input type="number" id="e_cons_age" value="${currentAge}"></div>
+                <button class="btn-primary" id="updateConsBtn">Update Consumer</button>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('updateConsBtn').addEventListener('click', async () => {
+        const name = document.getElementById('e_cons_name').value;
+        const address = document.getElementById('e_cons_addr').value;
+        const age = document.getElementById('e_cons_age').value;
+        if(!name || !address || !age) return alert("Fill all fields");
+
+        try {
+            const res = await fetch(`${API_BASE}/consumers/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, address, age}) });
+            if(res.ok) window.location.reload(); else alert("Error updating consumer.");
+        } catch(e) { alert("Server error"); }
+    });
 };
 
 window.viewConsumer = async function(consumerId) {
+    const API_BASE = 'http://localhost:5000/api';
     const data = await (await fetch(`${API_BASE}/consumer/${consumerId}/details`)).json();
     document.getElementById('modalBasicInfo').innerHTML = `<div class="detail-group"><div class="detail-label">Name</div><div class="detail-value">${data.consumer.full_name}</div></div><div class="detail-group"><div class="detail-label">Age</div><div class="detail-value">${data.consumer.age} yrs</div></div>`;
     const tbody = document.querySelector('#modalConnectionsTable tbody');

@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const API_BASE = 'http://localhost:5000/api';
     const tbody = document.querySelector('.data-table tbody');
+    
     fetch(`${API_BASE}/areas`).then(res => res.json()).then(data => {
         tbody.innerHTML = '';
         data.forEach(row => { 
@@ -21,10 +23,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-window.editArea = async function(id, cZ, cC, cG, cP) {
-    const zone = prompt("Zone:", cZ), city = prompt("City:", cC), grid_id = prompt("Grid ID:", cG), poc = prompt("POC:", cP);
-    if(zone && city && grid_id) {
-        const res = await fetch(`${API_BASE}/areas/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({zone, city, grid_id, poc}) });
-        if(res.ok) window.location.reload();
-    }
+window.editArea = async function(id, currentZone, currentCity, currentGridId, currentPoc) {
+    const API_BASE = 'http://localhost:5000/api';
+    
+    // Fetch grids to populate dropdown
+    const grids = await (await fetch(`${API_BASE}/grids`)).json();
+    let gridOpts = grids.map(g => `<option value="${g.grid_id}" data-loc="${g.location}" ${g.grid_id == currentGridId ? 'selected' : ''}>${g.grid_name} (${g.location})</option>`).join('');
+
+    const modalHtml = `
+        <div id="editAreaModal" class="modal-overlay" style="display:flex;">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>Edit Area #${id}</h2>
+                    <span class="close-btn" onclick="closeModal('editAreaModal')">✕</span>
+                </div>
+                <div class="form-group">
+                    <label>Parent Grid</label>
+                    <select id="e_area_grid" onchange="document.getElementById('e_area_city').value = this.options[this.selectedIndex].getAttribute('data-loc') || ''">
+                        ${gridOpts}
+                    </select>
+                </div>
+                <div class="form-group"><label>City</label><input type="text" id="e_area_city" value="${currentCity}" readonly style="background:#f3f4f6;"></div>
+                <div class="form-group"><label>Zone</label><input type="text" id="e_area_zone" value="${currentZone}"></div>
+                <div class="form-group"><label>POC</label><input type="text" id="e_area_poc" value="${currentPoc}"></div>
+                <button class="btn-primary" id="updateAreaBtn">Update Area</button>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('updateAreaBtn').addEventListener('click', async () => {
+        const zone = document.getElementById('e_area_zone').value;
+        const city = document.getElementById('e_area_city').value;
+        const grid_id = document.getElementById('e_area_grid').value;
+        const poc = document.getElementById('e_area_poc').value;
+
+        if(!zone || !grid_id || !city) return alert("Fill required fields!");
+
+        try {
+            const res = await fetch(`${API_BASE}/areas/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({zone, city, grid_id, poc}) });
+            if(res.ok) window.location.reload(); else alert("Error updating area.");
+        } catch(e) { alert("Server error"); }
+    });
 };

@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const API_BASE = 'http://localhost:5000/api';
     const tbody = document.querySelector('.data-table tbody');
+    
     fetch(`${API_BASE}/grids`).then(res => res.json()).then(data => {
         tbody.innerHTML = '';
         data.forEach(row => {
@@ -19,10 +21,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-window.editGrid = async function(id, curName, curLoc) {
-    const name = prompt("Name:", curName), location = prompt("Location:", curLoc);
-    if(name && location) {
-        const res = await fetch(`${API_BASE}/grids/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, location}) });
-        if(res.ok) window.location.reload();
-    }
+window.editGrid = function(id, currentName, currentLoc) {
+    const API_BASE = 'http://localhost:5000/api';
+    const modalHtml = `
+        <div id="editGridModal" class="modal-overlay" style="display:flex;">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>Edit Power Grid #${id}</h2>
+                    <span class="close-btn" onclick="closeModal('editGridModal')">✕</span>
+                </div>
+                <div class="form-group"><label>Grid Name</label><input type="text" id="e_grid_name" value="${currentName}"></div>
+                <div class="form-group"><label>Location</label><input type="text" id="e_grid_loc" value="${currentLoc}"></div>
+                <button class="btn-primary" id="updateGridBtn">Update Grid</button>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('updateGridBtn').addEventListener('click', async () => {
+        const name = document.getElementById('e_grid_name').value;
+        const location = document.getElementById('e_grid_loc').value;
+        if(!name || !location) return alert("Please fill all fields!");
+
+        try {
+            const res = await fetch(`${API_BASE}/grids/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, location}) });
+            if(res.ok) window.location.reload(); else alert("Error updating grid.");
+        } catch(e) { alert("Server error"); }
+    });
 };

@@ -139,9 +139,38 @@ def get_consumer_full_details(consumer_id):
     except: return None
     finally: cur.close(); conn.close()
 
-def get_analytics_top_areas(): return execute_query("SELECT d.zone, SUM(m.units_consumed) as total_units FROM meter_reading m JOIN connection c ON m.connection_id = c.connection_id JOIN distribution_area d ON c.area_id = d.area_id GROUP BY d.zone ORDER BY total_units DESC LIMIT 5")
-def get_analytics_power_loss(): return execute_query("SELECT d.zone, d.city, s.units_supplied, COALESCE(SUM(m.units_consumed), 0) as units_consumed, (s.units_supplied - COALESCE(SUM(m.units_consumed), 0)) as power_loss FROM area_monthly_supply s JOIN distribution_area d ON s.area_id = d.area_id LEFT JOIN connection c ON d.area_id = c.area_id LEFT JOIN meter_reading m ON c.connection_id = m.connection_id AND s.supply_month = m.billing_month GROUP BY d.zone, d.city, s.units_supplied ORDER BY power_loss DESC")
+def get_analytics_top_areas():
+    return execute_query("""
+        SELECT d.zone, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_units 
+        FROM meter_reading m 
+        JOIN connection c ON m.connection_id = c.connection_id 
+        JOIN distribution_area d ON c.area_id = d.area_id 
+        GROUP BY d.zone 
+        ORDER BY total_units DESC LIMIT 5
+    """)
 
+def get_analytics_power_loss():
+    return execute_query("""
+        WITH area_supply AS (
+            SELECT area_id, COALESCE(SUM(units_supplied), 0)::FLOAT as total_supplied
+            FROM area_monthly_supply
+            GROUP BY area_id
+        ),
+        area_consumed AS (
+            SELECT c.area_id, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_consumed
+            FROM meter_reading m
+            JOIN connection c ON m.connection_id = c.connection_id
+            GROUP BY c.area_id
+        )
+        SELECT d.zone, d.city, 
+               COALESCE(s.total_supplied, 0)::FLOAT as units_supplied, 
+               COALESCE(c.total_consumed, 0)::FLOAT as units_consumed, 
+               (COALESCE(s.total_supplied, 0) - COALESCE(c.total_consumed, 0))::FLOAT as power_loss 
+        FROM distribution_area d 
+        LEFT JOIN area_supply s ON d.area_id = s.area_id 
+        LEFT JOIN area_consumed c ON d.area_id = c.area_id 
+        ORDER BY power_loss DESC
+    """)
 def get_consumer_dashboard(consumer_id):
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
