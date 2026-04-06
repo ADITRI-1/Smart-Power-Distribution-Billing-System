@@ -391,3 +391,21 @@ body {
 .detail-group { margin-bottom: 1rem; }
 .detail-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;}
 .detail-value { font-size: 1rem; color: var(--text-main); font-weight: 500; }
+
+
+/* Solid Block Logout Button Hover Effect */
+.btn-logout {
+    display: block; /* This makes it a full box instead of just inline text */
+    padding: 0.75rem 1rem; /* Gives the box nice breathing room */
+    border-radius: 8px; /* Rounds the corners of the box */
+    color: var(--text-color, #4B5563); /* Default text color */
+    text-decoration: none; /* Removes any default link underlines */
+    transition: background-color 0.2s ease, color 0.2s ease;
+    font-weight: 500;
+}
+
+.btn-logout:hover {
+    background-color: var(--primary-blue, #2563EB) !important; /* The whole box turns blue */
+    color: #ffffff !important; /* The text turns white */
+    cursor: pointer;
+}

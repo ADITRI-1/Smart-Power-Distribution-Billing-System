@@ -185,3 +185,30 @@ def get_consumer_dashboard(consumer_id):
 
 def get_consumer_connections(consumer_id): return execute_query("SELECT connection_id, address, connection_type, load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, status FROM connection WHERE consumer_id = %s ORDER BY connection_id", (consumer_id,))
 def get_consumer_bills(consumer_id): return execute_query("SELECT bill_id, connection_id, billing_month as month, units_consumed as units, amount, payment_status as status, TO_CHAR(due_date, 'YYYY-MM-DD') as due_date FROM bill WHERE consumer_id = %s ORDER BY bill_id DESC", (consumer_id,))
+
+
+def get_consumer_profile(consumer_id):
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT c.consumer_id, c.full_name, c.permanent_address, c.age, u.username
+            FROM consumer c JOIN consumer_users u ON c.consumer_id = u.consumer_id
+            WHERE c.consumer_id = %s
+        """, (consumer_id,))
+        return cur.fetchone()
+    finally: cur.close(); conn.close()
+
+def update_consumer_profile(consumer_id, name, address, age, new_password_hash=None):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE consumer SET full_name=%s, permanent_address=%s, age=%s WHERE consumer_id=%s", (name, address, age, consumer_id))
+        if new_password_hash:
+            cur.execute("UPDATE consumer_users SET password_hash=%s WHERE consumer_id=%s", (new_password_hash, consumer_id))
+        conn.commit()
+        return True, "Profile updated successfully!"
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally: cur.close(); conn.close()

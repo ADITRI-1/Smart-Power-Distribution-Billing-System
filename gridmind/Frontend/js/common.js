@@ -16,3 +16,12 @@ window.closeModal = function(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.remove();
 };
+
+// Global Logout Function
+window.logout = function() {
+    // 1. Clear the saved session data (like the consumerId)
+    localStorage.clear();
+    
+    // 2. Kick the user back to the login screen
+    window.location.replace('login-consumer.html'); 
+};

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Profile - Smart Power</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="consumer-dashboard.html">My Dashboard</a></li>
+                <li><a href="consumer-connections.html">My Smart Meters</a></li>
+                <li><a href="consumer-bills.html">My Bills & Payments</a></li>
+                <li><a href="consumer-profile.html" class="active">My Profile</a></li>
+                <li style="margin-top: 2rem;"><a href="#" class="btn-logout" onclick="logout()">Log Out</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>My Profile & Settings</h1>
+            </div>
+            
+            <div class="table-card" style="max-width: 600px; padding: 2rem;">
+                <form id="profileForm">
+                    <div class="form-group">
+                        <label>Username (Cannot be changed)</label>
+                        <input type="text" id="p_username" readonly style="background: #f3f4f6; cursor: not-allowed; width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="p_name" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Permanent Address</label>
+                        <input type="text" id="p_address" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Age</label>
+                        <input type="number" id="p_age" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
+                    <div class="form-group">
+                        <label>New Password (Leave blank to keep current)</label>
+                        <input type="password" id="p_password" placeholder="Enter new password..." style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 1rem;">Save Profile Changes</button>
+                </form>
+            </div>
+        </main>
+    </div>
+    <script src="js/common.js"></script>
+    <script src="js/consumer-portal.js"></script>
+</body>
+</html>

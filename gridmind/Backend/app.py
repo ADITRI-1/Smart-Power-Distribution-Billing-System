@@ -3,6 +3,7 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db_connection
 import dao
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 CORS(app)
@@ -142,7 +143,14 @@ def delete_record(table_name, record_id):
 def pay_bill(bill_id):
     result = dao.pay_bill_transaction(bill_id)
     return jsonify(result), 200 if result['success'] else 400
-
+@app.route('/api/consumer/<int:consumer_id>/profile', methods=['GET', 'PUT'])
+def consumer_profile(consumer_id):
+    if request.method == 'PUT':
+        data = request.json
+        pw_hash = generate_password_hash(data['password']) if data.get('password') else None
+        success, msg = dao.update_consumer_profile(consumer_id, data['name'], data['address'], data['age'], pw_hash)
+        return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
+    return jsonify(dao.get_consumer_profile(consumer_id))
 if __name__ == '__main__':
     init_database()
     app.run(debug=True, port=5000)
