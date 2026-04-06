@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
     <style>
         .filter-bar {
-            display: flex; gap: 1rem; margin-bottom: 1.5rem; background: white; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);
+            display: flex; gap: 1rem; margin-bottom: 1.5rem; background: white; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color); align-items: center;
         }
         .filter-bar input, .filter-bar select {
             padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; flex: 1; outline: none;
@@ -47,7 +47,6 @@
                     <option value="Unpaid">Unpaid</option>
                     <option value="Overdue">Overdue</option>
                 </select>
-                <button class="btn-primary" style="margin-top: 0; width: auto;" onclick="renderBills()">Filter</button>
             </div>
 
             <div class="table-card">
@@ -70,6 +69,7 @@
             </div>
         </main>
     </div>
+    
     <script src="js/common.js"></script>
     <script src="js/bills.js"></script>
 </body>
