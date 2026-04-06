@@ -1,28 +1,24 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const API_BASE = 'http://localhost:5000/api';
 
     // --- LOGIN FORM LOGIC ---
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', async function(e) {
-            e.preventDefault(); // Stop the page from reloading
+            e.preventDefault(); 
             
             const usernameEl = document.getElementById('username');
             const passwordEl = document.getElementById('password');
             const loginTypeEl = document.getElementById('loginType');
 
-            // Safety check to ensure HTML is correct
-            if (!usernameEl || !passwordEl || !loginTypeEl) {
-                alert("Form Configuration Error: Missing input fields.");
-                return;
-            }
+            if (!usernameEl || !passwordEl || !loginTypeEl) return;
 
-            const username = usernameEl.value;
+            const username = usernameEl.value.trim();
             const password = passwordEl.value;
             const loginType = loginTypeEl.value; 
 
             try {
-                // Try to connect to your Python Backend
-                const response = await fetch('http://localhost:5000/api/login', {
+                const response = await fetch(`${API_BASE}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password, loginType })
@@ -33,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (response.ok) {
                     if (data.role === 'admin') {
                         window.location.replace('dashboard.html');
-                    } else {
+                    } else if (data.role === 'consumer') {
                         localStorage.setItem('consumerId', data.consumer_id);
                         window.location.replace('consumer-dashboard.html');
                     }
@@ -41,17 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert(data.error || 'Login failed! Check your credentials.');
                 }
             } catch (error) {
-                console.warn("Backend offline, trying offline fallback mode...");
-                
-                // Offline Fallback Data
-                if (loginType === 'admin' && username === 'gaurav' && password === 'admin') {
-                    window.location.replace('dashboard.html');
-                } else if (loginType === 'consumer' && username === 'gaurav' && password === 'consumer') {
-                    localStorage.setItem('consumerId', '1002');
-                    window.location.replace('consumer-dashboard.html');
-                } else {
-                    alert(`Server is offline. Invalid credentials. (Hint: Use gaurav / ${loginType})`);
-                }
+                alert("Cannot connect to the backend server. Is Python running on port 5000?");
             }
         });
     }
@@ -61,26 +47,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (signupForm && window.location.pathname.includes('signup')) {
         signupForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            const fullname = document.getElementById('fullname').value;
-            const username = document.getElementById('reg_username').value;
+            const fullname = document.getElementById('fullname').value.trim();
+            const username = document.getElementById('reg_username').value.trim();
             const password = document.getElementById('reg_password').value;
 
             try {
-                const response = await fetch('http://localhost:5000/api/signup', {
+                const response = await fetch(`${API_BASE}/signup`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ fullname, username, password })
                 });
                 
                 if (response.ok) {
-                    alert('Consumer account created successfully! You can now log in.');
+                    alert('Account created successfully! You can now log in.');
                     window.location.replace('login-consumer.html');
                 } else {
                     const data = await response.json();
-                    alert(data.error || 'Signup failed');
+                    alert(data.error || 'Signup failed.');
                 }
             } catch (error) {
-                alert("Cannot connect to the backend server to sign up.");
+                alert("Cannot connect to the backend server.");
             }
         });
     }

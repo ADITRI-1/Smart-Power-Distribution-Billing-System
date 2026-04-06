@@ -1,6 +1,4 @@
--- ==========================================================
--- 1. DROP EXISTING TABLES (To allow clean re-runs)
--- ==========================================================
+
 DROP TABLE IF EXISTS bill CASCADE;
 DROP TABLE IF EXISTS meter_reading CASCADE;
 DROP TABLE IF EXISTS area_monthly_supply CASCADE;

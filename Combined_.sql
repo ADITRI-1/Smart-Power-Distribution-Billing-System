@@ -1,15 +1,5 @@
 
--- =============================================================
--- HOW TO RUN:
---   Open pgAdmin → Query Tool → paste this entire file → Run (F5)
---   OR run via psql:  \i path/to/smart_power_complete.sql
--- =============================================================
 
--- =============================================================
--- PART 1 : SCHEMA — DROP, CREATE & INSERT
--- =============================================================
-
--- ── 1.1 Drop existing tables (clean re-run) ──────────────────
 DROP TABLE IF EXISTS bill CASCADE;
 DROP TABLE IF EXISTS meter_reading CASCADE;
 DROP TABLE IF EXISTS area_monthly_supply CASCADE;
