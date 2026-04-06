@@ -8,17 +8,14 @@ app = Flask(__name__)
 CORS(app)
 
 def init_database():
-    """Seeds the authentication tables safely if they are empty."""
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         cur.execute("SELECT COUNT(*) FROM admin_users")
         if cur.fetchone()[0] == 0:
             admin_hash = generate_password_hash('admin123')
-            cur.execute("INSERT INTO admin_users (full_name, username, password_hash) VALUES (%s, %s, %s)", 
-                        ('System Admin', 'admin', admin_hash))
-            cur.execute("INSERT INTO admin_users (full_name, username, password_hash) VALUES (%s, %s, %s)", 
-                        ('Gaurav Admin', 'gaurav_admin', admin_hash))
+            cur.execute("INSERT INTO admin_users (full_name, username, password_hash) VALUES (%s, %s, %s)", ('System Admin', 'admin', admin_hash))
+            cur.execute("INSERT INTO admin_users (full_name, username, password_hash) VALUES (%s, %s, %s)", ('Gaurav Admin', 'gaurav_admin', admin_hash))
         
         cur.execute("SELECT COUNT(*) FROM consumer_users")
         if cur.fetchone()[0] == 0:
@@ -29,12 +26,10 @@ def init_database():
         conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"Init DB Error: {e}")
     finally:
         cur.close()
         conn.close()
 
-# --- AUTH ROUTES ---
 @app.route('/api/signup', methods=['POST'])
 def signup():
     data = request.json
@@ -49,11 +44,10 @@ def login():
     if user_data and check_password_hash(user_data['password_hash'], data.get('password')):
         return jsonify({"message": "Login successful", "role": user_data['role'], "consumer_id": user_data.get('consumer_id')}), 200
     return jsonify({"error": "Invalid username or password"}), 401
-# Add this route to app.py under the ADMIN ROUTES section
+
 @app.route('/api/admin/dashboard', methods=['GET'])
-def admin_dashboard_stats():
-    return jsonify(dao.get_admin_dashboard_stats())
-# --- ADMIN CRUD ROUTES ---
+def admin_dashboard_stats(): return jsonify(dao.get_admin_dashboard_stats())
+
 @app.route('/api/grids', methods=['GET', 'POST'])
 def grids():
     if request.method == 'POST':
@@ -110,18 +104,11 @@ def edit_connection(connection_id):
     success, msg = dao.update_connection(connection_id, data['consumer_id'], data['area_id'], data['type'], data['load'], data['status'])
     return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
 
-# --- VIEW & ANALYTICS ROUTES ---
 @app.route('/api/readings', methods=['GET', 'POST'])
 def readings():
     if request.method == 'POST':
         data = request.json
-        # Notice we no longer pass bill_id or reading_id from the frontend!
-        result = dao.add_meter_reading(
-            connection_id=data['connection_id'], 
-            billing_month=data['billing_month'],
-            previous_reading=data['previous_reading'], 
-            current_reading=data['current_reading']
-        )
+        result = dao.add_meter_reading(data['connection_id'], data['billing_month'], data['previous_reading'], data['current_reading'])
         return jsonify(result), 201 if result['success'] else 400
     return jsonify(dao.get_readings())
 
@@ -136,7 +123,6 @@ def get_consumer_details(consumer_id):
     data = dao.get_consumer_full_details(consumer_id)
     return jsonify(data) if data else (jsonify({"error": "Not found"}), 404)
 
-# --- CONSUMER DASHBOARD ROUTES ---
 @app.route('/api/consumer/<int:consumer_id>/dashboard', methods=['GET'])
 def get_consumer_dash(consumer_id): return jsonify(dao.get_consumer_dashboard(consumer_id))
 
@@ -146,7 +132,6 @@ def get_consumer_conn(consumer_id): return jsonify(dao.get_consumer_connections(
 @app.route('/api/consumer/<int:consumer_id>/bills', methods=['GET'])
 def get_consumer_bills(consumer_id): return jsonify(dao.get_consumer_bills(consumer_id))
 
-# --- TRANSACTIONS ---
 @app.route('/api/delete/<table_name>/<int:record_id>', methods=['DELETE'])
 def delete_record(table_name, record_id):
     pk_map = {'power_grid': 'grid_id', 'distribution_area': 'area_id', 'consumer': 'consumer_id', 'connection': 'connection_id'}
