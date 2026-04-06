@@ -20,7 +20,7 @@ CREATE SEQUENCE bill_id_seq START WITH 10000;
 CREATE SEQUENCE reading_id_seq START WITH 1000;
 
 -- ==========================================
--- 2. CREATE TABLES (WITH CASCADE DELETES)
+-- 2. CREATE TABLES 
 -- ==========================================
 CREATE TABLE admin_users (
     admin_id SERIAL PRIMARY KEY,
@@ -57,7 +57,6 @@ CREATE TABLE distribution_area (
     poc VARCHAR(120)
 );
 
--- Changed to ON DELETE CASCADE for consumer and area
 CREATE TABLE connection (
     connection_id INT PRIMARY KEY,
     consumer_id INT NOT NULL REFERENCES consumer(consumer_id) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -77,7 +76,6 @@ CREATE TABLE area_monthly_supply (
     recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- Changed to ON DELETE CASCADE so deleting a connection deletes its readings
 CREATE TABLE meter_reading (
     reading_id INT PRIMARY KEY,
     connection_id INT NOT NULL REFERENCES connection(connection_id) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -100,7 +98,6 @@ CREATE TABLE tariff_slab (
     CONSTRAINT chk_effective_range CHECK (effective_to IS NULL OR effective_to >= effective_from)
 );
 
--- Changed to ON DELETE CASCADE so deleting a connection/consumer deletes their bills
 CREATE TABLE bill (
     bill_id INT PRIMARY KEY,
     consumer_id INT NOT NULL REFERENCES consumer(consumer_id) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -118,7 +115,7 @@ CREATE TABLE bill (
 );
 
 -- ==========================================
--- 3. TRIGGERS (Must be created BEFORE inserting data)
+-- 3. TRIGGERS
 -- ==========================================
 
 -- Trigger A: Mark Overdue automatically
@@ -134,12 +131,11 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_auto_mark_overdue BEFORE INSERT OR UPDATE ON bill
 FOR EACH ROW EXECUTE FUNCTION fn_auto_mark_overdue();
 
--- Trigger B: Continuity Check (FIXED: Ordering by reading_id instead of date string)
+-- Trigger B: Continuity Check
 CREATE OR REPLACE FUNCTION fn_validate_reading_continuity() RETURNS TRIGGER AS $$
 DECLARE
     last_reading NUMERIC;
 BEGIN
-    -- This guarantees it fetches the absolute last reading inserted for this connection
     SELECT current_reading INTO last_reading FROM meter_reading
     WHERE connection_id = NEW.connection_id ORDER BY reading_id DESC LIMIT 1;
 
@@ -162,17 +158,9 @@ FOR EACH ROW EXECUTE FUNCTION fn_validate_reading_continuity();
 -- Trigger C: AUTO GENERATE BILL
 CREATE OR REPLACE FUNCTION fn_generate_bill_after_reading() RETURNS TRIGGER AS $$
 DECLARE
-    v_consumer_id INT;
-    v_conn_type VARCHAR(40);
-    v_slab_id INT;
-    v_rate NUMERIC;
-    v_fixed NUMERIC;
-    v_bill_amount NUMERIC;
+    v_consumer_id INT; v_conn_type VARCHAR(40); v_slab_id INT; v_rate NUMERIC; v_fixed NUMERIC; v_bill_amount NUMERIC;
 BEGIN
-    -- Do not bill baseline installations
-    IF NEW.units_consumed = 0 AND NEW.current_reading = 0 THEN
-        RETURN NEW;
-    END IF;
+    IF NEW.units_consumed = 0 AND NEW.current_reading = 0 THEN RETURN NEW; END IF;
 
     SELECT consumer_id, connection_type INTO v_consumer_id, v_conn_type FROM connection WHERE connection_id = NEW.connection_id;
 
@@ -182,8 +170,7 @@ BEGIN
     v_bill_amount := ROUND((NEW.units_consumed * v_rate) + v_fixed, 2);
 
     INSERT INTO bill (
-        bill_id, consumer_id, connection_id, slab_id, billing_month,
-        units_consumed, amount, payment_status, generated_on, due_date
+        bill_id, consumer_id, connection_id, slab_id, billing_month, units_consumed, amount, payment_status, generated_on, due_date
     ) VALUES (
         nextval('bill_id_seq'), v_consumer_id, NEW.connection_id, v_slab_id, NEW.billing_month,
         NEW.units_consumed, v_bill_amount, 'Unpaid', CURRENT_DATE, CURRENT_DATE + INTERVAL '15 days'
@@ -222,12 +209,6 @@ INSERT INTO tariff_slab VALUES
 (2, 'Domestic', 100, 999999, 6.0, 75, '2024-04-01', NULL),
 (3, 'Commercial', 0, 999999, 8.5, 200, '2024-04-01', NULL);
 
-INSERT INTO area_monthly_supply VALUES
-(9001, 101, '2026-01', 120000, '2026-01-31 20:00:00'),
-(9002, 102, '2026-01', 95000, '2026-01-31 20:00:00'),
-(9003, 201, '2026-01', 110500, '2026-01-31 20:00:00');
-
-
 -- ==========================================
 -- 5. 4-MONTH CHRONOLOGICAL METER READINGS
 -- ==========================================
@@ -240,25 +221,33 @@ INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_re
 
 -- B) December 2025 Readings
 INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES
-(nextval('reading_id_seq'), 5001, '2025-12', 0, 145, 145),   
-(nextval('reading_id_seq'), 5002, '2025-12', 0, 420, 420),   
-(nextval('reading_id_seq'), 5003, '2025-12', 0, 95, 95);     
+(nextval('reading_id_seq'), 5001, '2025-12', 0, 145, 0),   
+(nextval('reading_id_seq'), 5002, '2025-12', 0, 420, 0),   
+(nextval('reading_id_seq'), 5003, '2025-12', 0, 95, 0);     
 
 -- C) January 2026 Readings 
 INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES
-(nextval('reading_id_seq'), 5001, '2026-01', 145, 280, 135),
-(nextval('reading_id_seq'), 5002, '2026-01', 420, 910, 490),
-(nextval('reading_id_seq'), 5003, '2026-01', 95, 210, 115);
+(nextval('reading_id_seq'), 5001, '2026-01', 145, 280, 0),
+(nextval('reading_id_seq'), 5002, '2026-01', 420, 910, 0),
+(nextval('reading_id_seq'), 5003, '2026-01', 95, 210, 0);
 
 -- D) February 2026 Readings 
 INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES
-(nextval('reading_id_seq'), 5001, '2026-02', 280, 400, 120),
-(nextval('reading_id_seq'), 5002, '2026-02', 910, 1350, 440),
-(nextval('reading_id_seq'), 5003, '2026-02', 210, 305, 95);
+(nextval('reading_id_seq'), 5001, '2026-02', 280, 400, 0),
+(nextval('reading_id_seq'), 5002, '2026-02', 910, 1350, 0),
+(nextval('reading_id_seq'), 5003, '2026-02', 210, 305, 0);
+
+-- E) March 2026 Readings (Fixed the continuity numbers!)
+INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES
+(nextval('reading_id_seq'), 5001, '2026-03', 400, 520, 0),  -- 120 units
+(nextval('reading_id_seq'), 5002, '2026-03', 1350, 1800, 0), -- 450 units
+(nextval('reading_id_seq'), 5003, '2026-03', 305, 415, 0);   -- 110 units
+
 
 -- ==========================================
 -- 6. SIMULATE PAYMENT HISTORY
 -- ==========================================
+-- Mark Dec, Jan, AND Feb as Paid. March will remain Unpaid!
 UPDATE bill 
 SET payment_status = 'Paid', paid_on = NOW() 
-WHERE billing_month IN ('2025-12', '2026-01');
+WHERE billing_month IN ('2025-12', '2026-01', '2026-02');
