@@ -3,7 +3,6 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db_connection
 import dao
-from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 CORS(app)
@@ -77,12 +76,23 @@ def edit_area(area_id):
     success, msg = dao.update_area(area_id, data['zone'], data['city'], data['grid_id'], data['poc'])
     return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
 
+# ========================================================
+# FIXED: Added 'GET' to methods to allow fetching consumers
+# ========================================================
 @app.route('/api/consumers', methods=['GET', 'POST'])
 def consumers():
     if request.method == 'POST':
         data = request.json
-        success, msg = dao.add_consumer(data['id'], data['name'], data['address'], data['age'])
-        return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
+        pw_hash = generate_password_hash(data['password'])
+        success, msg = dao.add_consumer(
+            data['id'], data['name'], data['address'], data['age'], data['username'], pw_hash
+        )
+        if success:
+            return jsonify({"message": msg}), 201
+        else:
+            return jsonify({"error": msg}), 400
+            
+    # This line sends the data back when the page loads!
     return jsonify(dao.get_consumers())
 
 @app.route('/api/consumers/<int:consumer_id>', methods=['PUT'])
@@ -143,6 +153,7 @@ def delete_record(table_name, record_id):
 def pay_bill(bill_id):
     result = dao.pay_bill_transaction(bill_id)
     return jsonify(result), 200 if result['success'] else 400
+
 @app.route('/api/consumer/<int:consumer_id>/profile', methods=['GET', 'PUT'])
 def consumer_profile(consumer_id):
     if request.method == 'PUT':
@@ -151,6 +162,7 @@ def consumer_profile(consumer_id):
         success, msg = dao.update_consumer_profile(consumer_id, data['name'], data['address'], data['age'], pw_hash)
         return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
     return jsonify(dao.get_consumer_profile(consumer_id))
+
 if __name__ == '__main__':
     init_database()
     app.run(debug=True, port=5000)
