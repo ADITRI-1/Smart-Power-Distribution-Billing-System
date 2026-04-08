@@ -235,3 +235,81 @@ def update_consumer_profile(consumer_id, name, address, age, new_password_hash=N
         conn.rollback()
         return False, str(e)
     finally: cur.close(); conn.close()
+
+def log_login_attempt(username, login_type, status):
+    """Records every login attempt in the database."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO login_logs (username, login_type, status) VALUES (%s, %s, %s)",
+            (username, login_type, status)
+        )
+        conn.commit()
+    except Exception as e: pass
+    finally: cur.close(); conn.close()
+
+def check_and_get_user(username, login_type):
+    """Fetches user data and checks if they are currently locked out."""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        table = "admin_users" if login_type == "admin" else "consumer_users"
+        
+        cur.execute(f"SELECT password_hash, failed_attempts, locked_until, {'consumer_id' if login_type == 'consumer' else 'admin_id'} FROM {table} WHERE username = %s", (username,))
+        user = cur.fetchone()
+        
+        if not user: return None
+        
+        # --- NEW DYNAMIC TIME CALCULATION ---
+        if user['locked_until']:
+            # Ask Postgres to calculate the exact difference in seconds
+            cur.execute("SELECT EXTRACT(EPOCH FROM (%s - NOW())) AS seconds_left", (user['locked_until'],))
+            seconds_left = cur.fetchone()['seconds_left']
+            
+            if seconds_left and seconds_left > 0:
+                minutes = int(seconds_left // 60)
+                seconds = int(seconds_left % 60)
+                # Pass the exact formatted time back to app.py
+                return {"is_locked": True, "time_left": f"{minutes}m {seconds}s"}
+            else:
+                # Time expired, unlock them
+                cur.execute(f"UPDATE {table} SET failed_attempts = 0, locked_until = NULL WHERE username = %s", (username,))
+                conn.commit()
+                user['failed_attempts'] = 0
+
+        user['is_locked'] = False
+        user['role'] = login_type
+        return user
+    finally: cur.close(); conn.close()
+    
+def handle_failed_login(username, login_type):
+    """Increments failed attempts. Locks for 30 mins if hits 5."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        table = "admin_users" if login_type == "admin" else "consumer_users"
+        
+        # Increment failed attempts
+        cur.execute(f"UPDATE {table} SET failed_attempts = failed_attempts + 1 WHERE username = %s RETURNING failed_attempts", (username,))
+        attempts = cur.fetchone()
+        
+        if attempts and attempts[0] >= 5:
+            # Lock the account for 30 minutes
+            cur.execute(f"UPDATE {table} SET locked_until = NOW() + INTERVAL '30 minutes' WHERE username = %s", (username,))
+            conn.commit()
+            return True # Indicates they just got locked
+        
+        conn.commit()
+        return False # Not locked yet
+    finally: cur.close(); conn.close()
+
+def handle_successful_login(username, login_type):
+    """Resets attempts on success."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        table = "admin_users" if login_type == "admin" else "consumer_users"
+        cur.execute(f"UPDATE {table} SET failed_attempts = 0, locked_until = NULL WHERE username = %s", (username,))
+        conn.commit()
+    finally: cur.close(); conn.close()

@@ -40,11 +40,41 @@ def signup():
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
-    user_data = dao.get_user_login_data(data.get('username'), data.get('loginType'))
-    if user_data and check_password_hash(user_data['password_hash'], data.get('password')):
-        return jsonify({"message": "Login successful", "role": user_data['role'], "consumer_id": user_data.get('consumer_id')}), 200
-    return jsonify({"error": "Invalid username or password"}), 401
+    username = data.get('username')
+    login_type = data.get('loginType')
+    password = data.get('password')
 
+    # 1. Fetch user and check lock status
+    user_data = dao.check_and_get_user(username, login_type)
+    
+    if not user_data:
+        dao.log_login_attempt(username, login_type, "Failed - Bad Username")
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    if user_data.get('is_locked'):
+        time_left = user_data.get('time_left', '30m 0s') # Get the dynamic time
+        dao.log_login_attempt(username, login_type, "Failed - Locked Out")
+        return jsonify({"error": f"Account is locked. Please try again in {time_left}."}), 403
+    
+    # 2. Check Password
+    if check_password_hash(user_data['password_hash'], password):
+        dao.handle_successful_login(username, login_type)
+        dao.log_login_attempt(username, login_type, "Success")
+        return jsonify({
+            "message": "Login successful", 
+            "role": user_data['role'], 
+            "consumer_id": user_data.get('consumer_id')
+        }), 200
+    else:
+        # 3. Wrong Password -> Handle Failures
+        just_locked = dao.handle_failed_login(username, login_type)
+        if just_locked:
+            dao.log_login_attempt(username, login_type, "Account Locked (5 fails)")
+            return jsonify({"error": "Account locked due to 5 failed attempts. Please wait 30 minutes."}), 403
+        else:
+            dao.log_login_attempt(username, login_type, "Failed - Bad Password")
+            return jsonify({"error": "Invalid username or password"}), 401
+        
 @app.route('/api/admin/dashboard', methods=['GET'])
 def admin_dashboard_stats(): return jsonify(dao.get_admin_dashboard_stats())
 
