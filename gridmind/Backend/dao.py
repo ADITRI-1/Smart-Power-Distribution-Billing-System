@@ -1,6 +1,8 @@
 from database import get_db_connection
 from psycopg2.extras import RealDictCursor
 import psycopg2
+import random
+import string
 
 def execute_query(query, params=None, fetchall=True):
     conn = get_db_connection()
@@ -282,7 +284,7 @@ def check_and_get_user(username, login_type):
         user['role'] = login_type
         return user
     finally: cur.close(); conn.close()
-    
+
 def handle_failed_login(username, login_type):
     """Increments failed attempts. Locks for 30 mins if hits 5."""
     conn = get_db_connection()
@@ -312,4 +314,49 @@ def handle_successful_login(username, login_type):
         table = "admin_users" if login_type == "admin" else "consumer_users"
         cur.execute(f"UPDATE {table} SET failed_attempts = 0, locked_until = NULL WHERE username = %s", (username,))
         conn.commit()
+    finally: cur.close(); conn.close()
+
+def generate_reset_token(email, login_type):
+    """Generates a 6-digit OTP, saves it to the DB with a 15 min expiry."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        table = "admin_users" if login_type == "admin" else "consumer_users"
+        
+        # Check if email exists
+        cur.execute(f"SELECT username FROM {table} WHERE email = %s", (email,))
+        if not cur.fetchone():
+            return None # Email not found
+        
+        # Generate 6-digit OTP
+        otp = ''.join(random.choices(string.digits, k=6))
+        
+        # Update DB with token and expiry
+        cur.execute(f"UPDATE {table} SET reset_token = %s, token_expiry = NOW() + INTERVAL '15 minutes' WHERE email = %s", (otp, email))
+        conn.commit()
+        return otp
+    except Exception as e:
+        conn.rollback()
+        return None
+    finally: cur.close(); conn.close()
+
+def reset_password_with_token(email, token, new_password_hash, login_type):
+    """Verifies the OTP and updates the password if valid."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        table = "admin_users" if login_type == "admin" else "consumer_users"
+        
+        # Check token and expiry
+        cur.execute(f"SELECT reset_token FROM {table} WHERE email = %s AND reset_token = %s AND token_expiry > NOW()", (email, token))
+        if not cur.fetchone():
+            return False, "Invalid or expired OTP."
+        
+        # Reset password and clear token safely
+        cur.execute(f"UPDATE {table} SET password_hash = %s, reset_token = NULL, token_expiry = NULL, failed_attempts = 0, locked_until = NULL WHERE email = %s", (new_password_hash, email))
+        conn.commit()
+        return True, "Password reset successfully."
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
     finally: cur.close(); conn.close()

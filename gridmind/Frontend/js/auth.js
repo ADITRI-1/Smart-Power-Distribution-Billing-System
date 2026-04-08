@@ -1,5 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE = 'http://localhost:5000/api';
+
+    // --- 1. LOGIN LOGIC ---
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', async function(e) {
@@ -21,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- 2. SIGNUP LOGIC ---
     const signupForm = document.querySelector('form[action="#"]'); 
     if (signupForm && window.location.pathname.includes('signup')) {
         signupForm.addEventListener('submit', async function(e) {
@@ -35,4 +38,76 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) { alert("Server connectivity error."); }
         });
     }
+
+    // --- 3. FORGOT PASSWORD LOGIC ---
+    const forgotForm = document.getElementById('forgotForm');
+    if (forgotForm) {
+        // Step 1: Send OTP Request
+        forgotForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('resetEmail').value;
+            const btn = document.getElementById('btn-send-otp');
+            btn.innerText = "Sending..."; btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, loginType: document.getElementById('loginType').value }) // Dynamic login type
+                });
+                const data = await res.json();
+                alert(data.message);
+                
+                if (res.ok) {
+                    toggleForms('reset'); // Move to the OTP entry screen
+                }
+            } catch (err) {
+                alert("Network error connecting to backend.");
+            } finally {
+                btn.innerText = "Send OTP"; btn.disabled = false;
+            }
+        });
+    }
+
+    const resetForm = document.getElementById('resetForm');
+    if (resetForm) {
+        // Step 2: Verify OTP and Reset
+        resetForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('resetEmail').value; // Get from previous step
+            const token = document.getElementById('resetOtp').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const btn = document.getElementById('btn-reset-pw');
+            
+            btn.innerText = "Verifying..."; btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_BASE}/auth/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, token, newPassword, loginType: document.getElementById('loginType').value }) // Dynamic login type
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    alert("Success! " + data.message + " You can now log in.");
+                    toggleForms('login');
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch (err) {
+                alert("Network error.");
+            } finally {
+                btn.innerText = "Reset Password"; btn.disabled = false;
+            }
+        });
+    }
 });
+
+// UI Toggler (Needs to be outside DOMContentLoaded so the HTML onclick="toggleForms()" can find it)
+window.toggleForms = function(target) {
+    document.getElementById('loginForm').style.display = target === 'login' ? 'block' : 'none';
+    document.getElementById('forgot-link-container').style.display = target === 'login' ? 'block' : 'none';
+    document.getElementById('forgotForm').style.display = target === 'forgot' ? 'block' : 'none';
+    document.getElementById('resetForm').style.display = target === 'reset' ? 'block' : 'none';
+};

@@ -193,6 +193,43 @@ def consumer_profile(consumer_id):
         return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
     return jsonify(dao.get_consumer_profile(consumer_id))
 
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.json
+    email = data.get('email')
+    login_type = data.get('loginType', 'consumer') # Default to consumer
+    
+    otp = dao.generate_reset_token(email, login_type)
+    
+    if otp:
+        # --- THE SIMULATED EMAIL ---
+        print("\n" + "="*45)
+        print("📩 SIMULATED EMAIL DISPATCH")
+        print(f"To: {email}")
+        print(f"Subject: Smart Power - Password Reset Request")
+        print(f"Body: Your 6-digit OTP is: {otp}")
+        print("This code will expire in 15 minutes.")
+        print("="*45 + "\n")
+        
+    # Security Best Practice: Always return the same message so attackers can't guess valid emails
+    return jsonify({"message": "If the email exists in our system, an OTP has been sent."}), 200
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    data = request.json
+    email = data.get('email')
+    token = data.get('token')
+    new_password = data.get('newPassword')
+    login_type = data.get('loginType', 'consumer')
+    
+    hashed_pw = generate_password_hash(new_password)
+    success, msg = dao.reset_password_with_token(email, token, hashed_pw, login_type)
+    
+    if success:
+        return jsonify({"message": msg}), 200
+    else:
+        return jsonify({"error": msg}), 400
+    
 if __name__ == '__main__':
     init_database()
     app.run(debug=True, port=5000)
