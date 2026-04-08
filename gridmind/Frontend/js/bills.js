@@ -34,7 +34,7 @@ function renderBills() {
     fData.forEach(row => {
         let badge = row.status === 'Paid' ? 'badge-blue' : (row.status === 'Overdue' ? 'badge-red' : 'badge-gray');
         let action = row.status !== 'Paid' 
-            ? `<button class="pay-btn-table" onclick="openPaymentModal(${row.bill_id}, ${row.amount})">Pay Now</button>` 
+            ? `<button class="pay-btn-table" onclick="payBill(${row.bill_id})">Mark as Paid</button>` 
             : '';
         tbody.innerHTML += `<tr><td>${row.bill_id}</td><td>${row.connection_id}</td><td>${row.month}</td><td>${row.units}</td><td>₹${parseFloat(row.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td><td><span class="badge ${badge}">${row.status}</span></td><td>${row.due_date}</td><td>${action}</td></tr>`;
     });
