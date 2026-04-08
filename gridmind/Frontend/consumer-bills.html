@@ -38,5 +38,17 @@
     
     <script src="js/common.js"></script>
     <script src="js/consumer-portal.js"></script>
+
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closePaymentModal()">&times;</span>
+            <h2>Complete Your Payment</h2>
+            <p id="paymentDetails">Paying Bill #... Amount: ₹...</p>
+            <img src="images/qr.png" alt="UPI QR Code" class="qr-code">
+            <p class="timer">Awaiting payment... <span id="countdown">04:59</span></p>
+            <button id="simulateSuccessBtn" class="pay-btn">Simulate Payment Success</button>
+        </div>
+    </div>
+
 </body>
 </html>

@@ -25,7 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             recent.forEach(row => {
                 let badge = row.status === 'Paid' ? 'badge-blue' : (row.status === 'Overdue' ? 'badge-red' : 'badge-gray');
-                let action = row.status !== 'Paid' ? `<span class="action-pay" onclick="payConsumerBill(${row.bill_id})">✔ Pay</span>` : '<span style="color:var(--primary-green);">✔️ Paid</span>';
+                let action = row.status !== 'Paid' 
+                    ? `<button class="pay-btn-table" onclick="openPaymentModal(${row.bill_id}, ${row.amount})">Pay Now</button>` 
+                    : '';
                 tbody.innerHTML += `<tr><td>${row.month}</td><td>${row.connection_id}</td><td>₹${parseFloat(row.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td><td><span class="badge ${badge}">${row.status}</span></td><td>${row.due_date}</td><td>${action}</td></tr>`;
             });
         });
@@ -52,7 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.innerHTML = '';
             data.forEach(row => {
                 let badge = row.status === 'Paid' ? 'badge-blue' : (row.status === 'Overdue' ? 'badge-red' : 'badge-gray');
-                let action = row.status !== 'Paid' ? `<span class="action-pay" onclick="payConsumerBill(${row.bill_id})">✔ Pay</span>` : '<span style="color:var(--primary-green);">✔️ Paid</span>';
+                let action = row.status !== 'Paid' 
+                    ? `<button class="pay-btn-table" onclick="openPaymentModal(${row.bill_id}, ${row.amount})">Pay Now</button>` 
+                    : '<span style="color:var(--primary-green);">✔️ Paid</span>';
                 tbody.innerHTML += `<tr><td>${row.bill_id}</td><td>${row.connection_id}</td><td>${row.month}</td><td>${row.units}</td><td>₹${parseFloat(row.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td><td><span class="badge ${badge}">${row.status}</span></td><td>${row.due_date}</td><td>${action}</td></tr>`;
             });
         });
@@ -90,15 +94,81 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch(err) { alert("Server error while updating profile."); }
         });
     }
+
+    // Attach the Success listener only if the button exists on this page
+    const simulateBtn = document.getElementById('simulateSuccessBtn');
+    if (simulateBtn) {
+        simulateBtn.addEventListener('click', function() {
+            if (!currentPayingBillId || paymentInProgress) return;
+            
+            const btn = this;
+            paymentInProgress = true;
+            btn.innerText = "Processing...";
+            btn.disabled = true;
+            
+            fetch(`${API_BASE}/bills/${currentPayingBillId}/pay`, {
+                method: 'POST' 
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert("Payment Successful! Bill marked as Paid.");
+                    closePaymentModal();
+                    location.reload(); 
+                } else {
+                    alert("Payment failed: " + (data.error || "Unknown error"));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Network error connecting to backend.");
+            })
+            .finally(() => {
+                paymentInProgress = false;
+                btn.innerText = "Simulate Payment Success";
+                btn.disabled = false;
+            });
+        });
+    }
 });
 
-// Global Pay Function
-window.payConsumerBill = async function(billId) {
-    if(confirm(`Process payment for Bill #${billId}?`)) {
-        try {
-            const res = await fetch(`http://localhost:5000/api/bills/${billId}/pay`, { method: 'POST' });
-            alert((await res.json()).message || "Error processing payment.");
-            if(res.ok) window.location.reload();
-        } catch(e) { alert("Server error."); }
-    }
+
+let currentPayingBillId = null;
+let paymentInProgress = false;
+let countdownInterval = null;
+
+// Opens the modal and starts the countdown
+window.openPaymentModal = function(billId, amount) {
+    currentPayingBillId = billId;
+    document.getElementById('paymentDetails').innerText = `Paying Bill #${billId} - Amount: ₹${amount}`;
+    document.getElementById('paymentModal').style.display = "block";
+    startCountdown();
 };
+
+// Closes the modal and stops the timer
+window.closePaymentModal = function() {
+    document.getElementById('paymentModal').style.display = "none";
+    currentPayingBillId = null;
+    clearInterval(countdownInterval);
+};
+
+function startCountdown() {
+    clearInterval(countdownInterval); // Clear any old timers
+    let timeLeft = 5 * 60; // 5 minutes
+    document.getElementById('countdown').innerText = "05:00";
+    
+    countdownInterval = setInterval(() => {
+        timeLeft--;
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        document.getElementById('countdown').innerText = 
+            `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        if (timeLeft <= 0) {
+            clearInterval(countdownInterval);
+            alert("Payment window expired. Please try again.");
+            closePaymentModal();
+        }
+    }, 1000);
+}
+

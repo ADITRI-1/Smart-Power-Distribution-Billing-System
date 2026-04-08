@@ -33,7 +33,9 @@ function renderBills() {
     if(fData.length === 0) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No bills found.</td></tr>'; return; }
     fData.forEach(row => {
         let badge = row.status === 'Paid' ? 'badge-blue' : (row.status === 'Overdue' ? 'badge-red' : 'badge-gray');
-        let action = row.status !== 'Paid' ? `<span class="action-pay" onclick="payBill(${row.bill_id})">✔ Pay</span>` : '';
+        let action = row.status !== 'Paid' 
+            ? `<button class="pay-btn-table" onclick="openPaymentModal(${row.bill_id}, ${row.amount})">Pay Now</button>` 
+            : '';
         tbody.innerHTML += `<tr><td>${row.bill_id}</td><td>${row.connection_id}</td><td>${row.month}</td><td>${row.units}</td><td>₹${parseFloat(row.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td><td><span class="badge ${badge}">${row.status}</span></td><td>${row.due_date}</td><td>${action}</td></tr>`;
     });
 }

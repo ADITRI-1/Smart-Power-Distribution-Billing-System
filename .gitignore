@@ -1,0 +1,3 @@
+venv
+gridmind\Backend\__pycache__
+gridmind\Backend\.env
