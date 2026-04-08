@@ -68,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="form-group"><label>Age</label><input type="number" id="m_age"></div>
                         </div>
                         <div class="form-group"><label>Full Name</label><input type="text" id="m_name"></div>
+                        <div class="form-group"><label>Email Address</label><input type="email" id="consumerEmail" placeholder="e.g. user@example.com"></div>
                         <div class="form-group"><label>Permanent Address</label><input type="text" id="m_addr"></div>
                         
                         <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('submitConsBtn').addEventListener('click', async () => {
                 const id = document.getElementById('m_cons_id').value;
                 const name = document.getElementById('m_name').value;
+                const email = document.getElementById('consumerEmail').value;
                 const address = document.getElementById('m_addr').value;
                 const age = document.getElementById('m_age').value;
                 const username = document.getElementById('m_username').value;
@@ -98,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const res = await fetch(`${API_BASE}/consumers`, { 
                         method: 'POST', 
                         headers: {'Content-Type': 'application/json'}, 
-                        body: JSON.stringify({id, name, address, age, username, password})
+                        body: JSON.stringify({id, name, email, address, age, username, password})
                     });
                     
                     if(res.ok) {

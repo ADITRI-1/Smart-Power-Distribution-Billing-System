@@ -113,16 +113,32 @@ def edit_area(area_id):
 def consumers():
     if request.method == 'POST':
         data = request.json
-        pw_hash = generate_password_hash(data['password'])
+        raw_password = data['password'] # Capture raw password for the email
+        pw_hash = generate_password_hash(raw_password)
+        email = data.get('email') # Get the email
+        
+        # Pass the email to the DAO
         success, msg = dao.add_consumer(
-            data['id'], data['name'], data['address'], data['age'], data['username'], pw_hash
+            data['id'], data['name'], data['address'], data['age'], data['username'], pw_hash, email
         )
+        
         if success:
+            # --- THE SIMULATED WELCOME EMAIL ---
+            print("\n" + "="*45)
+            print("📩 SIMULATED WELCOME EMAIL DISPATCH")
+            print(f"To: {email}")
+            print(f"Subject: Welcome to Smart Power!")
+            print(f"Hello {data['name']},")
+            print(f"Your account has been created by the Grid Admin.")
+            print(f"Username: {data['username']}")
+            print(f"Password: {raw_password}")
+            print("Please log in and update your profile if needed.")
+            print("="*45 + "\n")
+            
             return jsonify({"message": msg}), 201
         else:
             return jsonify({"error": msg}), 400
             
-    # This line sends the data back when the page loads!
     return jsonify(dao.get_consumers())
 
 @app.route('/api/consumers/<int:consumer_id>', methods=['PUT'])

@@ -74,30 +74,30 @@ def get_bills(): return execute_query("SELECT bill_id, consumer_id, connection_i
 
 def add_grid(grid_id, grid_name, location): return execute_modify("INSERT INTO power_grid (grid_id, grid_name, location) VALUES (%s, %s, %s)", (grid_id, grid_name, location))
 def add_area(area_id, grid_id, zone, city, poc): return execute_modify("INSERT INTO distribution_area (area_id, grid_id, zone, city, poc) VALUES (%s, %s, %s, %s, %s)", (area_id, grid_id, zone, city, poc))
-def add_consumer(consumer_id, name, address, age, username, password_hash):
+def add_consumer(consumer_id, name, address, age, username, password_hash, email): # <-- Added email here
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # 1. Create the base consumer profile
         cur.execute("""
             INSERT INTO consumer (consumer_id, full_name, permanent_address, age) 
             VALUES (%s, %s, %s, %s)
         """, (consumer_id, name, address, age))
         
-        # 2. Create their login credentials linked to that profile
+        # Insert the email into the auth table
         cur.execute("""
-            INSERT INTO consumer_users (consumer_id, username, password_hash) 
-            VALUES (%s, %s, %s)
-        """, (consumer_id, username, password_hash))
+            INSERT INTO consumer_users (consumer_id, username, password_hash, email) 
+            VALUES (%s, %s, %s, %s)
+        """, (consumer_id, username, password_hash, email)) # <-- Added email here
         
         conn.commit()
         return True, "Consumer and Login Profile created successfully!"
     except Exception as e:
-        conn.rollback() # If username is taken or ID exists, cancel everything safely
+        conn.rollback() 
         return False, str(e)
     finally:
         cur.close()
         conn.close()
+        
 def update_grid(grid_id, name, location): return execute_modify("UPDATE power_grid SET grid_name=%s, location=%s WHERE grid_id=%s", (name, location, grid_id))
 def update_area(area_id, zone, city, grid_id, poc): return execute_modify("UPDATE distribution_area SET zone=%s, city=%s, grid_id=%s, poc=%s WHERE area_id=%s", (zone, city, grid_id, poc, area_id))
 def update_consumer(consumer_id, name, address, age): return execute_modify("UPDATE consumer SET full_name=%s, permanent_address=%s, age=%s WHERE consumer_id=%s", (name, address, age, consumer_id))
