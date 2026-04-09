@@ -360,3 +360,31 @@ def reset_password_with_token(email, token, new_password_hash, login_type):
         conn.rollback()
         return False, str(e)
     finally: cur.close(); conn.close()
+
+def update_bill_status_admin(bill_id, status, method=None):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if status == 'Paid':
+            # Mark as paid, set the date, and save the payment method (Cash, UPI, etc.)
+            cur.execute("""
+                UPDATE bill 
+                SET payment_status = 'Paid', paid_on = NOW(), payment_method = %s 
+                WHERE bill_id = %s
+            """, (method, bill_id))
+        else:
+            # Revert to unpaid. Clear the paid_on date and the payment method!
+            cur.execute("""
+                UPDATE bill 
+                SET payment_status = 'Unpaid', paid_on = NULL, payment_method = NULL 
+                WHERE bill_id = %s
+            """, (bill_id,))
+            
+        conn.commit()
+        return True, f"Bill #{bill_id} status updated to {status}."
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally:
+        cur.close()
+        conn.close()

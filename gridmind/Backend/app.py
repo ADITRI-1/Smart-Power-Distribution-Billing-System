@@ -246,6 +246,17 @@ def reset_password():
     else:
         return jsonify({"error": msg}), 400
     
+@app.route('/api/admin/bills/<int:bill_id>/status', methods=['PUT'])
+def admin_update_bill_status(bill_id):
+    data = request.json
+    status = data.get('status')
+    method = data.get('method') # Will be None if reverting to Unpaid
+    
+    success, msg = dao.update_bill_status_admin(bill_id, status, method)
+    if success:
+        return jsonify({"message": msg}), 200
+    else:
+        return jsonify({"error": msg}), 400
 if __name__ == '__main__':
     init_database()
     app.run(debug=True, port=5000)
