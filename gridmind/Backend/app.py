@@ -168,6 +168,15 @@ def readings():
         result = dao.add_meter_reading(data['connection_id'], data['billing_month'], data['previous_reading'], data['current_reading'])
         return jsonify(result), 201 if result['success'] else 400
     return jsonify(dao.get_readings())
+@app.route('/api/readings/<int:reading_id>', methods=['PUT', 'DELETE'])
+def modify_reading(reading_id):
+    if request.method == 'DELETE':
+        success, msg = dao.delete_meter_reading(reading_id)
+        return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
+    elif request.method == 'PUT':
+        data = request.json
+        success, msg = dao.update_meter_reading(reading_id, data['previous_reading'], data['current_reading'])
+        return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
 
 @app.route('/api/bills', methods=['GET'])
 def get_bills(): return jsonify(dao.get_bills())

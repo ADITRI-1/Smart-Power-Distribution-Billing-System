@@ -52,55 +52,54 @@ SELECT 'T1 AFTER' AS checkpoint, bill_id, consumer_id,
        billing_month, amount, payment_status
 FROM   bill WHERE bill_id = 7001;
  
- 
+ ROLLBACK;
 -- =============================================================
--- TRANSACTION T2 : Normal Commit
+-- TRANSACTION T2 : Normal Commit (Paying an Overdue Bill)
 -- TYPE    : Successful UPDATE transaction (COMMIT)
 -- CONCEPT : Consistency — mark a bill as Paid and record the
---           exact timestamp. Guards against paying an already
---           paid bill using a conditional WHERE clause.
--- MAPS TO : Consumer Portal → Pay Bill button
+--           exact timestamp. Guards against double payments.
 -- =============================================================
- 
--- First insert a fresh Unpaid bill to pay in this demo
+
+
+-- 1. Remove the old one
+DELETE FROM bill WHERE bill_id = 7002;
+
+-- 2. Insert with TODAY'S DATE so it stays at the top of the Admin list
 INSERT INTO bill (
     bill_id, consumer_id, connection_id, slab_id,
     billing_month, units_consumed, amount,
     payment_status, generated_on, due_date
 ) VALUES (
-    7002, 1001, 5001, 1,
-    '2026-01', 90, 455.00,
-    'Unpaid', CURRENT_DATE, CURRENT_DATE + INTERVAL '15 days'
+    7002, 1003, 5003, 1,
+    '2024-08', 90, 455.00,
+    'Overdue', 
+    CURRENT_DATE, -- Set to today
+    CURRENT_DATE  -- Set to today so it sorts to the top
 );
 
--- ── Before state ─────────────────────────────────────────────
-SELECT 'T2 BEFORE' AS checkpoint,
-       bill_id, payment_status, paid_on
-FROM   bill WHERE bill_id = 7002;
- 
--- ── Transaction ──────────────────────────────────────────────
+-- ── Transaction Block ────────────────────────────────────────
 BEGIN;
  
-    -- Step 1: Lock the row so no other transaction can touch it
     SELECT bill_id, amount, payment_status
     FROM   bill
     WHERE  bill_id = 7002
     FOR UPDATE;
  
-    -- Step 2: Mark as Paid only if it is currently Unpaid
     UPDATE bill
     SET    payment_status = 'Paid',
-           paid_on        = NOW()
+           paid_on        = NOW(),
+           payment_method = 'Online Transaction' 
     WHERE  bill_id        = 7002
-      AND  payment_status = 'Unpaid';
+      AND  payment_status IN ('Unpaid', 'Overdue');
  
 COMMIT;
- 
+
+-- 3. Verify it is still there
+SELECT * FROM bill WHERE bill_id = 7002;
 -- ── After state: payment_status must be Paid ─────────────────
 SELECT 'T2 AFTER' AS checkpoint,
-       bill_id, payment_status, paid_on
+       bill_id, payment_status, paid_on, payment_method
 FROM   bill WHERE bill_id = 7002;
- 
  
 -- =============================================================
 -- TRANSACTION T3 : Intentional Rollback
@@ -112,100 +111,47 @@ FROM   bill WHERE bill_id = 7002;
 --           a duplicate bill in the same transaction.
 --           The duplicate bill causes a unique-key violation,
 --           so the connection deactivation is also rolled back.
--- =============================================================
- 
+
 -- ── Before state ─────────────────────────────────────────────
-SELECT 'T3 BEFORE' AS checkpoint,
-       connection_id, status
-FROM   connection WHERE connection_id = 5002;
- 
--- ── Transaction ──────────────────────────────────────────────
+-- =============================================================
+-- TRANSACTION T3 : Success Demo (Commit)
+-- CONCEPT : Atomicity — Both steps must save together.
+-- =============================================================
+
+-- 1. Ensure 5001 is Active before we start the demo
+UPDATE connection SET status = 'Active' WHERE connection_id = 5001;
+
 BEGIN;
- 
-    -- Step 1: Deactivate connection 5002
+
+    -- Step 1: Deactivate connection 5001
     UPDATE connection
     SET    status = 'Inactive'
-    WHERE  connection_id = 5002;
- 
-    -- Verify inside transaction (should show Inactive right now)
-    SELECT 'T3 INSIDE (before rollback)' AS checkpoint,
-           connection_id, status
-    FROM   connection WHERE connection_id = 5002;
- 
-    -- Step 2: Try to insert a bill that already exists
-    -- bill_id 9000 + connection_id 5002 + billing_month '2025-11'
-    -- violates the unique index uq_bill_conn_month_ci → ERROR
+    WHERE  connection_id = 5001;
+
+    -- Step 2: Insert a valid bill specifically for 5001 
+    -- (Matching the connection ID is crucial for consistency)
     INSERT INTO bill (
         bill_id, consumer_id, connection_id, slab_id,
         billing_month, units_consumed, amount,
         payment_status, generated_on, due_date
     ) VALUES (
-        9000, 1002, 5002, 3,   -- bill_id 9000 already exists!
-        '2025-11', 80, 400.00,
-        'Unpaid', CURRENT_DATE, CURRENT_DATE + INTERVAL '15 days'
+        nextval('bill_id_seq'), 
+        (SELECT consumer_id FROM connection WHERE connection_id = 5001), 
+        5001, 
+        1, 
+        '2026-03', 100, 500.00,
+        'Unpaid', CURRENT_DATE, (TO_DATE('2026-03-01', 'YYYY-MM-DD') + INTERVAL '1 month' + INTERVAL '14 days')::DATE
     );
- 
-ROLLBACK; -- rolls back BOTH the UPDATE and the failed INSERT
- 
--- ── After state: connection must still be Active ─────────────
+
+COMMIT; 
 SELECT 'T3 AFTER (rollback confirmed)' AS checkpoint,
        connection_id, status
-FROM   connection WHERE connection_id = 5002;
+FROM   connection WHERE connection_id = 5001;
 -- Expected: status = 'Active'  ← rollback worked ✓
- 
- 
--- =============================================================
--- TRANSACTION T4 : SAVEPOINT — Partial Rollback
--- TYPE    : Transaction with SAVEPOINT
--- CONCEPT : Durability + fine-grained control — a SAVEPOINT
---           lets you undo only part of a transaction without
---           losing everything. Like a checkpoint inside a game.
--- SCENARIO: Admin updates an address (valid), then accidentally
---           sets age to 15 (violates CHECK age >= 18).
---           ROLLBACK TO SAVEPOINT undoes only the bad update;
---           the address change is preserved on COMMIT.
--- =============================================================
- 
--- ── Before state ─────────────────────────────────────────────
-SELECT 'T4 BEFORE' AS checkpoint,
-       consumer_id, full_name, permanent_address, age
-FROM   consumer WHERE consumer_id = 1004;
- 
--- ── Transaction ──────────────────────────────────────────────
-BEGIN;
- 
-    -- Step 1: Valid update — fix the address
-    UPDATE consumer
-    SET    permanent_address = 'Koramangala, Bengaluru'
-    WHERE  consumer_id = 1004;
- 
-    -- Create a savepoint AFTER the valid update
-    SAVEPOINT sp_after_address;
- 
-    -- Step 2: Accidental bad update — age below minimum
-    UPDATE consumer
-    SET    age = 15          -- violates CHECK (age >= 18)
-    WHERE  consumer_id = 1004;
- 
-    -- Oops! Roll back only to savepoint — undo the bad age update
-    ROLLBACK TO SAVEPOINT sp_after_address;
- 
-    -- Step 3: Correct the age properly
-    UPDATE consumer
-    SET    age = 24
-    WHERE  consumer_id = 1004;
- 
-COMMIT;
- 
--- ── After state: address updated, age = 24 ───────────────────
-SELECT 'T4 AFTER' AS checkpoint,
-       consumer_id, full_name, permanent_address, age
-FROM   consumer WHERE consumer_id = 1004;
--- Expected: permanent_address = 'Koramangala, Bengaluru', age = 24  ✓
- 
+ ROLLBACK;
  
 -- =============================================================
--- TRANSACTION T5 : Isolation Level Demo
+-- TRANSACTION T4 : Isolation Level Demo
 -- TYPE    : READ COMMITTED (default) vs REPEATABLE READ
 -- CONCEPT : Isolation — shows how PostgreSQL prevents dirty
 --           reads. A transaction cannot see uncommitted changes
@@ -216,16 +162,15 @@ FROM   consumer WHERE consumer_id = 1004;
 --   Run the SESSION B steps in Tab 2.
 --   Follow the step numbers in order.
 -- =============================================================
- 
+ ROLLBACK;
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║  SESSION A  (run in Tab 1)                               ║
 -- ╚══════════════════════════════════════════════════════════╝
- 
 -- [A-Step 1] Start transaction and update bill amount
 BEGIN;
     UPDATE bill
     SET    amount = 999.99
-    WHERE  bill_id = 8001;
+    WHERE  bill_id = 10033;
  
     -- Do NOT commit yet — keep this transaction open
     -- Now switch to Tab 2 and run Session B steps
@@ -240,7 +185,7 @@ BEGIN;
 SELECT 'SESSION B READ' AS checkpoint,
        bill_id, amount, payment_status
 FROM   bill
-WHERE  bill_id = 8001;
+WHERE  bill_id = 10033;
 -- Expected: amount = 342.50  (original, not 999.99)  ✓
  
 -- [B-Step 2] Try to update the same row
@@ -249,7 +194,7 @@ WHERE  bill_id = 8001;
 BEGIN;
     UPDATE bill
     SET    amount = 500.00
-    WHERE  bill_id = 8001;
+    WHERE  bill_id = 10033;
     --  Tab 2 is now BLOCKED, waiting for Session A to finish
  
 -- ╔══════════════════════════════════════════════════════════╗
@@ -271,90 +216,9 @@ COMMIT;
 SELECT 'CONFLICT RESULT' AS checkpoint,
        bill_id, amount
 FROM   bill
-WHERE  bill_id = 8001;
+WHERE  bill_id = 10033;
 -- Expected: amount = 500.00 (Session B's value, last writer wins) ✓
  
 -- Restore original value after demo
-UPDATE bill SET amount = 342.50 WHERE bill_id = 8001;
+UPDATE bill SET amount = 342.50 WHERE bill_id = 10033;
  
- 
--- =============================================================
--- TRANSACTION T6 : Constraint Violation Rollback
--- TYPE    : Auto-rollback on constraint violation
--- CONCEPT : Integrity — PostgreSQL automatically aborts the
---           entire transaction when a constraint is violated,
---           protecting the database from bad data.
--- SCENARIO: Try to insert a consumer with age = 16, which
---           violates the CHECK (age >= 18) constraint.
--- =============================================================
- 
--- ── Before state ─────────────────────────────────────────────
-SELECT 'T6 BEFORE' AS checkpoint,
-       COUNT(*) AS total_consumers FROM consumer;
- 
--- ── Transaction ──────────────────────────────────────────────
-BEGIN;
- 
-    -- Step 1: Insert a valid grid (this succeeds)
-    INSERT INTO power_grid VALUES (3, 'East Side Grid', 'Mumbai');
- 
-    -- Step 2: Try to insert consumer with age = 16 (will fail)
-    INSERT INTO consumer VALUES
-    (1005, 'Minor User', 'Some Address, Mumbai', 16);
-    -- ↑ ERROR: violates check constraint "consumer_age_check"
- 
-ROLLBACK; -- entire transaction undone, including the grid insert
- 
--- ── After state: grid 3 must NOT exist (rollback worked) ─────
-SELECT 'T6 AFTER' AS checkpoint,
-       COUNT(*) AS total_consumers FROM consumer;
--- Expected: same count as before  ✓
- 
-SELECT 'T6 AFTER' AS checkpoint,
-       COUNT(*) AS grid_3_exists
-FROM   power_grid WHERE grid_id = 3;
--- Expected: 0 (grid was also rolled back)  ✓
- 
- 
--- =============================================================
--- FINAL STATE CHECK — run after all transactions
--- Shows the net effect of all committed transactions on the DB
--- =============================================================
- 
-SELECT '── FINAL STATE ──' AS section,
-       '' AS value;
- 
-SELECT 'meter_reading count' AS table_name,
-       COUNT(*) AS total_rows FROM meter_reading
-UNION ALL
-SELECT 'bill count',          COUNT(*) FROM bill
-UNION ALL
-SELECT 'consumer count',      COUNT(*) FROM consumer
-UNION ALL
-SELECT 'connection count',    COUNT(*) FROM connection;
- 
--- Bills inserted by T1 and T2 that survived (committed)
-SELECT 'Committed bills from T1 & T2' AS note,
-       bill_id, consumer_id, billing_month,
-       amount, payment_status
-FROM   bill
-WHERE  bill_id IN (7001, 7002)
-ORDER  BY bill_id;
- 
--- Consumer 1004 updated by T4 (savepoint demo)
-SELECT 'Consumer 1004 after T4 savepoint' AS note,
-       consumer_id, permanent_address, age
-FROM   consumer
-WHERE  consumer_id = 1004;
- 
- 
--- =============================================================
--- CLEANUP — remove demo rows added during Task 6
--- Run this after your demo/viva to restore original state
--- =============================================================
- 
-DELETE FROM bill          WHERE bill_id      IN (7001, 7002);
-DELETE FROM meter_reading WHERE reading_id   = 20;
-UPDATE consumer
-SET    permanent_address = 'Indiranagar, Bengaluru', age = 23
-WHERE  consumer_id = 1004;

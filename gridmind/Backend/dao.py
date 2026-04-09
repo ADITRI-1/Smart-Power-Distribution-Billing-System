@@ -3,6 +3,7 @@ from psycopg2.extras import RealDictCursor
 import psycopg2
 import random
 import string
+from datetime import datetime
 
 def execute_query(query, params=None, fetchall=True):
     conn = get_db_connection()
@@ -68,7 +69,15 @@ def get_user_login_data(username, login_type):
 def get_grids(): return execute_query("SELECT grid_id, grid_name, location FROM power_grid ORDER BY grid_id")
 def get_areas(): return execute_query("SELECT area_id, zone, city, grid_id, poc FROM distribution_area ORDER BY area_id")
 def get_consumers(): return execute_query("SELECT consumer_id, full_name, permanent_address as address, age FROM consumer ORDER BY consumer_id")
-def get_connections(): return execute_query("SELECT connection_id, consumer_id, area_id, connection_type, load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, status FROM connection ORDER BY connection_id")
+def get_connections(): 
+    # Ensure no caching: fetch fresh status every time [cite: 8]
+    return execute_query("""
+        SELECT connection_id, consumer_id, area_id, connection_type, 
+               load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, 
+               status 
+        FROM connection 
+        ORDER BY connection_id
+    """)
 def get_readings(): return execute_query("SELECT reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed FROM meter_reading ORDER BY reading_id DESC")
 def get_bills(): return execute_query("SELECT bill_id, consumer_id, connection_id, billing_month as month, units_consumed as units, amount, payment_status as status, TO_CHAR(due_date, 'YYYY-MM-DD') as due_date FROM bill ORDER BY due_date DESC, bill_id DESC")
 
@@ -118,6 +127,71 @@ def add_connection(connection_id, consumer_id, area_id, address, conn_type, load
     finally: cur.close(); conn.close()
 
 def add_meter_reading(connection_id, billing_month, previous_reading, current_reading):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # 1. Prevent Future Months
+        current_month = datetime.now().strftime('%Y-%m')
+        if billing_month > current_month:
+            raise ValueError(f"Cannot log readings for future months. (Current max: {current_month})")
+
+        cur.execute("SELECT status FROM connection WHERE connection_id = %s", (connection_id,))
+        c = cur.fetchone()
+        if not c or c[0] != 'Active': raise ValueError("Connection inactive/invalid.")
+        
+        # 2. Silently wipe out the Base placeholder reading
+        cur.execute("DELETE FROM meter_reading WHERE connection_id = %s AND billing_month LIKE '%%-Base'", (connection_id,))
+        
+        cur.execute("INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES (nextval('reading_id_seq'), %s, %s, %s, %s, 0)", (connection_id, billing_month, previous_reading, current_reading))
+        conn.commit()
+        return {'success': True, 'message': 'Reading logged! Bill auto-generated.'}
+    except Exception as e:
+        conn.rollback()
+        return {'success': False, 'message': str(e)}
+    finally: cur.close(); conn.close()
+
+def delete_meter_reading(reading_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Find the connection and month so we can delete the attached bill
+        cur.execute("SELECT connection_id, billing_month FROM meter_reading WHERE reading_id = %s", (reading_id,))
+        row = cur.fetchone()
+        if not row: return False, "Reading not found"
+        
+        # Delete the Bill FIRST, then delete the Reading
+        cur.execute("DELETE FROM bill WHERE connection_id = %s AND billing_month = %s", (row[0], row[1]))
+        cur.execute("DELETE FROM meter_reading WHERE reading_id = %s", (reading_id,))
+        
+        conn.commit()
+        return True, "Reading and associated bill successfully deleted."
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally: cur.close(); conn.close()
+
+def update_meter_reading(reading_id, prev_reading, curr_reading):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # To trigger the automatic bill generation again, we safely delete and re-insert the reading!
+        cur.execute("SELECT connection_id, billing_month FROM meter_reading WHERE reading_id = %s", (reading_id,))
+        r = cur.fetchone()
+        if not r: raise ValueError("Reading not found")
+        
+        # Delete old bill & old reading
+        cur.execute("DELETE FROM bill WHERE connection_id = %s AND billing_month = %s", (r[0], r[1]))
+        cur.execute("DELETE FROM meter_reading WHERE reading_id = %s", (reading_id,))
+        
+        # Re-insert reading with same ID (This forces the DB Trigger to generate a brand new bill!)
+        cur.execute("INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES (%s, %s, %s, %s, %s, 0)", (reading_id, r[0], r[1], prev_reading, curr_reading))
+        
+        conn.commit()
+        return True, "Reading updated and new bill generated!"
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally: cur.close(); conn.close()
     conn = get_db_connection()
     cur = conn.cursor()
     try:
