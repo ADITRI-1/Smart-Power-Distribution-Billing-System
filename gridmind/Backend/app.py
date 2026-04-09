@@ -257,6 +257,14 @@ def admin_update_bill_status(bill_id):
         return jsonify({"message": msg}), 200
     else:
         return jsonify({"error": msg}), 400
+    
+@app.route('/api/bills/<int:bill_id>/invoice', methods=['GET'])
+def get_invoice(bill_id):
+    data = dao.get_full_invoice_details(bill_id)
+    if data: 
+        return jsonify(data), 200
+    return jsonify({"error": "Invoice data not found"}), 404
+
 if __name__ == '__main__':
     init_database()
     app.run(debug=True, port=5000)

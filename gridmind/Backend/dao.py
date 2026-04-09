@@ -388,3 +388,33 @@ def update_bill_status_admin(bill_id, status, method=None):
     finally:
         cur.close()
         conn.close()
+
+def get_full_invoice_details(bill_id):
+    """Fetches a massive, joined payload of every single detail related to a bill."""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT 
+                b.bill_id, b.billing_month, b.units_consumed, b.amount, b.payment_status, 
+                TO_CHAR(b.generated_on, 'YYYY-MM-DD') as generated_on, 
+                TO_CHAR(b.due_date, 'YYYY-MM-DD') as due_date, 
+                TO_CHAR(b.paid_on, 'YYYY-MM-DD HH24:MI:SS') as paid_on,
+                b.payment_method,
+                c.consumer_id, c.full_name as consumer_name, c.permanent_address,
+                conn.connection_id, conn.address as connection_address, conn.connection_type, conn.load_assign,
+                da.zone, da.city,
+                pg.grid_name,
+                ts.rate_per_unit, ts.fixed_charge
+            FROM bill b
+            JOIN consumer c ON b.consumer_id = c.consumer_id
+            JOIN connection conn ON b.connection_id = conn.connection_id
+            JOIN distribution_area da ON conn.area_id = da.area_id
+            JOIN power_grid pg ON da.grid_id = pg.grid_id
+            JOIN tariff_slab ts ON b.slab_id = ts.slab_id
+            WHERE b.bill_id = %s
+        """, (bill_id,))
+        return cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
