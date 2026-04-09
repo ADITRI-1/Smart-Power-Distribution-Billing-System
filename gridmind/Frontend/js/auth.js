@@ -23,26 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 2. SIGNUP LOGIC ---
-    const signupForm = document.querySelector('form[action="#"]'); 
-    if (signupForm && window.location.pathname.includes('signup')) {
-        signupForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const fullname = document.getElementById('fullname').value.trim();
-            const username = document.getElementById('reg_username').value.trim();
-            const password = document.getElementById('reg_password').value;
-            try {
-                const res = await fetch(`${API_BASE}/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fullname, username, password }) });
-                if (res.ok) { alert('Account created! Please log in.'); window.location.replace('login-consumer.html'); }
-                else { const data = await res.json(); alert(data.error); }
-            } catch (error) { alert("Server connectivity error."); }
-        });
-    }
-
-    // --- 3. FORGOT PASSWORD LOGIC ---
+    // --- 2. FORGOT PASSWORD LOGIC ---
     const forgotForm = document.getElementById('forgotForm');
     if (forgotForm) {
-        // Step 1: Send OTP Request
         forgotForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('resetEmail').value;
@@ -53,13 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(`${API_BASE}/auth/forgot-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, loginType: document.getElementById('loginType').value }) // Dynamic login type
+                    body: JSON.stringify({ email: email, loginType: document.getElementById('loginType').value }) 
                 });
                 const data = await res.json();
                 alert(data.message);
                 
                 if (res.ok) {
-                    toggleForms('reset'); // Move to the OTP entry screen
+                    toggleForms('reset'); 
                 }
             } catch (err) {
                 alert("Network error connecting to backend.");
@@ -71,10 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const resetForm = document.getElementById('resetForm');
     if (resetForm) {
-        // Step 2: Verify OTP and Reset
         resetForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('resetEmail').value; // Get from previous step
+            const email = document.getElementById('resetEmail').value; 
             const token = document.getElementById('resetOtp').value;
             const newPassword = document.getElementById('newPassword').value;
             const btn = document.getElementById('btn-reset-pw');
@@ -85,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(`${API_BASE}/auth/reset-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, token, newPassword, loginType: document.getElementById('loginType').value }) // Dynamic login type
+                    body: JSON.stringify({ email, token, newPassword, loginType: document.getElementById('loginType').value }) 
                 });
                 const data = await res.json();
                 
@@ -104,7 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// UI Toggler (Needs to be outside DOMContentLoaded so the HTML onclick="toggleForms()" can find it)
 window.toggleForms = function(target) {
     document.getElementById('loginForm').style.display = target === 'login' ? 'block' : 'none';
     document.getElementById('forgot-link-container').style.display = target === 'login' ? 'block' : 'none';

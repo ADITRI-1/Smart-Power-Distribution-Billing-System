@@ -27,123 +27,146 @@ window.logout = function() {
 };
 
 // ==========================================
-// UNIVERSAL PDF INVOICE GENERATOR
+// UNIVERSAL PDF INVOICE GENERATOR (100% FIXED)
 // ==========================================
 window.downloadInvoice = async function(billId) {
-    const btn = event.currentTarget; // Get the button that was clicked
+    const btn = event.currentTarget || document.activeElement;
     const originalText = btn.innerHTML;
     btn.innerHTML = "⏳ Generating...";
     btn.disabled = true;
 
     try {
-        // 1. Fetch the massive data payload from Python
+        // 1. Backend se data fetch karna
         const res = await fetch(`http://localhost:5000/api/bills/${billId}/invoice`);
         const data = await res.json();
-        if(!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error || "Failed to fetch data");
 
-        // 2. Build the Official Invoice Template
+        // Calculations safely format karna
+        const energyCharge = parseFloat(data.units_consumed) * parseFloat(data.rate_per_unit);
+        const fixedCharge = parseFloat(data.fixed_charge);
+        const totalAmount = parseFloat(data.amount);
+        const prevReading = data.previous_reading !== null ? data.previous_reading : '-';
+        const currReading = data.current_reading !== null ? data.current_reading : '-';
+        const isPaid = data.payment_status === 'Paid';
+
+        // 2. Perfect Table-Based HTML Layout (Isme overlap nahi hoga)
         const invoiceHtml = `
-            <div id="invoice-box" style="padding: 40px; font-family: 'Segoe UI', Arial, sans-serif; color: #333; width: 800px; background: white; margin: 0 auto;">
-                
-                <div style="display: flex; justify-content: space-between; border-bottom: 3px solid #2563EB; padding-bottom: 20px; margin-bottom: 30px;">
-                    <div>
-                        <h1 style="color: #2563EB; margin: 0; font-size: 32px; font-weight: 800;">⚡ Smart Power</h1>
-                        <p style="margin: 5px 0 0 0; color: #6B7280; font-size: 14px;">Official Electricity Invoice</p>
-                    </div>
-                    <div style="text-align: right;">
-                        <h2 style="margin: 0; color: #111827; font-size: 24px;">INVOICE #${data.bill_id}</h2>
-                        <div style="display: inline-block; padding: 4px 12px; margin-top: 8px; border-radius: 4px; font-weight: bold; background-color: ${data.payment_status === 'Paid' ? '#D1FAE5' : '#FEE2E2'}; color: ${data.payment_status === 'Paid' ? '#065F46' : '#991B1B'};">
+        <div id="pdf-content" style="width: 800px; padding: 40px; background: white; font-family: Arial, sans-serif; color: #333; box-sizing: border-box;">
+            
+            <table width="100%" style="border-bottom: 2px solid #2563EB; padding-bottom: 10px; margin-bottom: 30px; border-collapse: collapse;">
+                <tr>
+                    <td style="vertical-align: bottom;">
+                        <h1 style="color: #2563EB; font-size: 36px; margin: 0;">⚡ Smart Power</h1>
+                        <p style="color: #777; font-size: 14px; margin: 5px 0 0 0;">Official Electricity Invoice</p>
+                    </td>
+                    <td style="text-align: right; vertical-align: bottom;">
+                        <h2 style="font-size: 24px; margin: 0 0 10px 0; color: #111;">INVOICE #${data.bill_id}</h2>
+                        <span style="background-color: ${isPaid ? '#D1FAE5' : '#FEE2E2'}; color: ${isPaid ? '#065F46' : '#991B1B'}; padding: 6px 12px; font-weight: bold; border-radius: 4px; font-size: 14px;">
                             STATUS: ${data.payment_status.toUpperCase()}
-                        </div>
-                    </div>
-                </div>
+                        </span>
+                    </td>
+                </tr>
+            </table>
 
-                <div style="display: flex; justify-content: space-between; margin-bottom: 40px; line-height: 1.6;">
-                    <div style="width: 48%; background: #F9FAFB; padding: 15px; border-radius: 8px;">
-                        <h3 style="border-bottom: 1px solid #E5E7EB; padding-bottom: 8px; color: #4B5563; margin-top: 0; font-size: 14px; text-transform: uppercase;">Billed To</h3>
-                        <p style="margin: 5px 0; font-size: 16px; font-weight: bold; color: #111827;">${data.consumer_name}</p>
-                        <p style="margin: 5px 0; color: #4B5563; font-size: 14px;">Consumer ID: #${data.consumer_id}</p>
-                        <p style="margin: 5px 0; color: #4B5563; font-size: 14px;">${data.permanent_address}</p>
-                    </div>
-                    <div style="width: 48%; background: #F9FAFB; padding: 15px; border-radius: 8px;">
-                        <h3 style="border-bottom: 1px solid #E5E7EB; padding-bottom: 8px; color: #4B5563; margin-top: 0; font-size: 14px; text-transform: uppercase;">Connection Details</h3>
-                        <p style="margin: 5px 0; color: #4B5563; font-size: 14px;"><strong>Meter ID:</strong> #${data.connection_id} (${data.connection_type}, ${data.load_assign})</p>
-                        <p style="margin: 5px 0; color: #4B5563; font-size: 14px;"><strong>Location:</strong> ${data.connection_address}</p>
-                        <p style="margin: 5px 0; color: #4B5563; font-size: 14px;"><strong>Power Source:</strong> ${data.grid_name} (${data.zone}, ${data.city})</p>
-                    </div>
-                </div>
+            <table width="100%" style="margin-bottom: 30px; border-collapse: collapse;">
+                <tr>
+                    <td width="48%" style="background: #F9FAFB; padding: 20px; border-radius: 8px; vertical-align: top;">
+                        <h3 style="font-size: 14px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-top: 0;">BILLED TO</h3>
+                        <p style="font-size: 18px; font-weight: bold; margin: 10px 0 5px 0; color: #111;">${data.consumer_name}</p>
+                        <p style="font-size: 14px; color: #666; margin: 0 0 5px 0;">Consumer ID: #${data.consumer_id}</p>
+                        <p style="font-size: 14px; color: #666; margin: 0;">${data.permanent_address}</p>
+                    </td>
+                    <td width="4%"></td> <td width="48%" style="background: #F9FAFB; padding: 20px; border-radius: 8px; vertical-align: top;">
+                        <h3 style="font-size: 14px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-top: 0;">CONNECTION DETAILS</h3>
+                        <p style="font-size: 14px; color: #666; margin: 10px 0 5px 0;"><strong>Meter ID:</strong> #${data.connection_id} (${data.connection_type}, ${data.load_assign})</p>
+                        <p style="font-size: 14px; color: #666; margin: 0 0 5px 0;"><strong>Location:</strong> ${data.connection_address}</p>
+                        <p style="font-size: 14px; color: #666; margin: 0;"><strong>Power Source:</strong> ${data.grid_name} (${data.zone}, ${data.city})</p>
+                    </td>
+                </tr>
+            </table>
 
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
-                    <thead>
-                        <tr style="background-color: #2563EB; color: white; text-align: left;">
-                            <th style="padding: 12px 15px; border-radius: 6px 0 0 0;">Billing Month</th>
-                            <th style="padding: 12px 15px;">Units Consumed</th>
-                            <th style="padding: 12px 15px;">Tariff Rate</th>
-                            <th style="padding: 12px 15px;">Fixed Charges</th>
-                            <th style="padding: 12px 15px; text-align: right; border-radius: 0 6px 0 0;">Total Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="border-bottom: 2px solid #E5E7EB;">
-                            <td style="padding: 15px; color: #111827; font-weight: 500;">${data.billing_month}</td>
-                            <td style="padding: 15px; color: #4B5563;">${data.units_consumed} kWh</td>
-                            <td style="padding: 15px; color: #4B5563;">₹${data.rate_per_unit} / kWh</td>
-                            <td style="padding: 15px; color: #4B5563;">₹${data.fixed_charge}</td>
-                            <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 18px; color: #111827;">₹${parseFloat(data.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <table width="100%" style="border-collapse: collapse; margin-bottom: 40px;">
+                <thead>
+                    <tr style="background: #2563EB; color: white;">
+                        <th style="padding: 12px; text-align: left; border-radius: 4px 0 0 0;">Billing Month</th>
+                        <th style="padding: 12px; text-align: left;">Units Consumed</th>
+                        <th style="padding: 12px; text-align: left;">Tariff Rate</th>
+                        <th style="padding: 12px; text-align: left;">Fixed Charges</th>
+                        <th style="padding: 12px; text-align: right; border-radius: 0 4px 0 0;">Total Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #ddd;">
+                        <td style="padding: 15px 12px; font-weight: bold; color: #111;">${data.billing_month}</td>
+                        <td style="padding: 15px 12px; color: #555;">
+                            ${data.units_consumed} kWh<br>
+                            <span style="font-size:11px; color:#888;">(Prev: ${prevReading} | Curr: ${currReading})</span>
+                        </td>
+                        <td style="padding: 15px 12px; color: #555;">₹${data.rate_per_unit} / kWh</td>
+                        <td style="padding: 15px 12px; color: #555;">₹${data.fixed_charge}</td>
+                        <td style="padding: 15px 12px; text-align: right; font-weight: bold; font-size: 18px; color: #111;">₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                    </tr>
+                </tbody>
+            </table>
 
-                <div style="display: flex; justify-content: space-between; border-top: 1px solid #E5E7EB; padding-top: 20px;">
-                    <div style="line-height: 1.8;">
-                        <p style="margin: 0; color: #4B5563; font-size: 14px;"><strong>Generated On:</strong> ${data.generated_on}</p>
-                        <p style="margin: 0; color: #DC2626; font-size: 14px;"><strong>Due Date:</strong> ${data.due_date}</p>
-                    </div>
-                    <div style="text-align: right; line-height: 1.8;">
-                        ${data.payment_status === 'Paid' ? `
-                            <p style="margin: 0; color: #059669; font-size: 14px;"><strong>Paid On:</strong> ${data.paid_on}</p>
-                            <p style="margin: 0; color: #4B5563; font-size: 14px;"><strong>Method:</strong> ${data.payment_method || 'Online Transaction'}</p>
-                        ` : `
-                            <p style="margin: 0; font-size: 18px; font-weight: bold; color: #DC2626;">AMOUNT DUE: ₹${parseFloat(data.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</p>
-                        `}
-                    </div>
-                </div>
+            <table width="100%" style="border-collapse: collapse;">
+                <tr>
+                    <td width="50%" style="vertical-align: top;">
+                        <p style="margin: 0 0 5px 0; font-size: 14px; color: #555;"><strong>Generated On:</strong> ${data.generated_on}</p>
+                        <p style="margin: 0; font-size: 14px; color: #DC2626;"><strong>Due Date:</strong> ${data.due_date}</p>
+                    </td>
+                    <td width="50%" style="text-align: right; vertical-align: top;">
+                        ${isPaid ? 
+                            `<p style="margin: 0 0 5px 0; font-size: 14px; color: #059669;"><strong>Paid On:</strong> ${data.paid_on}</p>
+                             <p style="margin: 0; font-size: 14px; color: #555;"><strong>Method:</strong> ${data.payment_method || 'Online Transaction'}</p>`
+                            : 
+                            `<p style="margin: 0; font-size: 18px; font-weight: bold; color: #DC2626;">AMOUNT DUE: ₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits:2})}</p>`
+                        }
+                    </td>
+                </tr>
+            </table>
 
-                <div style="margin-top: 60px; text-align: center; border-top: 1px dashed #E5E7EB; padding-top: 20px;">
-                    <p style="color: #9CA3AF; font-size: 12px; margin: 0;">This is a system-generated invoice and does not require a physical signature.</p>
-                    <p style="color: #9CA3AF; font-size: 12px; margin: 5px 0 0 0;">For support, contact Smart Power Administration.</p>
-                </div>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ccc; text-align: center; font-size: 12px; color: #999;">
+                This is a system-generated invoice and does not require a physical signature.<br>
+                For support, contact Smart Power Administration.
             </div>
+        </div>
         `;
 
-        // 3. Create a temporary, hidden container on the webpage
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = invoiceHtml;
-        tempDiv.style.position = 'absolute';
-        tempDiv.style.left = '-9999px'; // Hide it off-screen
-        document.body.appendChild(tempDiv);
+        // 3. SAFE HIDDEN DIV: Ye sabse zaroori hissa hai PDF library ke bug se bachne ke liye
+        const container = document.createElement('div');
+        container.innerHTML = invoiceHtml;
+        // Div ko screen ke upar rakhenge but poora transparent kar denge taaki library galti na kare
+        container.style.position = 'absolute';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.opacity = '0'; 
+        container.style.zIndex = '-9999';
+        container.style.pointerEvents = 'none';
+        document.body.appendChild(container);
 
-        // 4. Trigger the PDF Generation
-        const element = document.getElementById('invoice-box');
+        const element = document.getElementById('pdf-content');
+
+        // 4. Engine Configuration (A4 Format)
         const opt = {
-            margin:       0.5,
+            margin:       0.3,
             filename:     `SmartPower_Invoice_${billId}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
+            image:        { type: 'jpeg', quality: 1 },
             html2canvas:  { scale: 2, useCORS: true },
-            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
 
+        // 5. Download and Clean up
         await html2pdf().set(opt).from(element).save();
-        
-        // 5. Clean up the hidden HTML
-        document.body.removeChild(tempDiv);
+        document.body.removeChild(container);
 
-    } catch(e) {
-        console.error(e);
-        alert("Error generating invoice. Check console.");
+    } catch (e) {
+        console.error("PDF Gen Error:", e);
+        alert("Error generating invoice. Ensure Backend is connected.");
     } finally {
-        // Restore the button
-        btn.innerHTML = originalText;
-        btn.disabled = false;
+        if(btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
     }
 };

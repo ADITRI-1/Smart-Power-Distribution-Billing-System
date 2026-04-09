@@ -55,10 +55,16 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.innerHTML = '';
             data.forEach(row => {
                 let badge = row.status === 'Paid' ? 'badge-blue' : (row.status === 'Overdue' ? 'badge-red' : 'badge-gray');
+                
+                // Build the actions
                 let action = row.status !== 'Paid' 
                     ? `<button class="pay-btn-table" onclick="openPaymentModal(${row.bill_id}, ${row.amount})">Pay Now</button>` 
                     : '<span style="color:var(--primary-green);">✔️ Paid</span>';
-                tbody.innerHTML += `<tr><td>${row.bill_id}</td><td>${row.connection_id}</td><td>${row.month}</td><td>${row.units}</td><td>₹${parseFloat(row.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td><td><span class="badge ${badge}">${row.status}</span></td><td>${row.due_date}</td><td>${action}</td></tr>`;
+                
+                // The PDF button
+                action += ` <button class="pay-btn-table" style="background-color: #4B5563; margin-left: 15px;" onclick="downloadInvoice(${row.bill_id})" title="Download PDF">📥 PDF</button>`;
+
+                tbody.innerHTML += `<tr><td>${row.month}</td><td>${row.connection_id}</td><td>₹${parseFloat(row.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td><td><span class="badge ${badge}">${row.status}</span></td><td>${row.due_date}</td><td>${action}</td></tr>`;
             });
         });
     }

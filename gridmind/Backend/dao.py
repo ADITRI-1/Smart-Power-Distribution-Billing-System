@@ -405,13 +405,15 @@ def get_full_invoice_details(bill_id):
                 conn.connection_id, conn.address as connection_address, conn.connection_type, conn.load_assign,
                 da.zone, da.city,
                 pg.grid_name,
-                ts.rate_per_unit, ts.fixed_charge
+                ts.rate_per_unit, ts.fixed_charge,
+                mr.previous_reading, mr.current_reading
             FROM bill b
             JOIN consumer c ON b.consumer_id = c.consumer_id
             JOIN connection conn ON b.connection_id = conn.connection_id
             JOIN distribution_area da ON conn.area_id = da.area_id
             JOIN power_grid pg ON da.grid_id = pg.grid_id
             JOIN tariff_slab ts ON b.slab_id = ts.slab_id
+            LEFT JOIN meter_reading mr ON b.connection_id = mr.connection_id AND b.billing_month = mr.billing_month
             WHERE b.bill_id = %s
         """, (bill_id,))
         return cur.fetchone()
