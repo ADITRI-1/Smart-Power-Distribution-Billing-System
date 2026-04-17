@@ -2,7 +2,7 @@
 const API_BASE = 'http://localhost:5000/api';
 
 // Safely get the logged-in consumer's ID from localStorage (set during login)
-const consumerId = localStorage.getItem('consumer_id');
+const consumerId = localStorage.getItem('consumerId');
 let currentOpenTicketId = null; // Tracks which thread is currently open
 
 // Redirect if not logged in
@@ -29,16 +29,20 @@ async function fetchMyTickets() {
         }
 
         tickets.forEach(t => {
-            // Replace spaces with dashes for CSS classes
-            const statusClass = `status-${t.status.replace(/\s+/g, '-')}`; 
+            // Map statuses to standard UI badges
+            let badgeClass = 'badge-gray';
+            const statusLower = t.status.toLowerCase();
+            if (statusLower === 'open') badgeClass = 'badge-red';
+            else if (statusLower === 'in progress') badgeClass = 'badge-warning';
+            else if (statusLower === 'resolved') badgeClass = 'badge-success';
             
             const row = `
                 <tr>
                     <td>#${t.ticket_id}</td>
                     <td>${t.subject}</td>
                     <td>${t.created_at}</td>
-                    <td><span class="status-badge ${statusClass}">${t.status}</span></td>
-                    <td><button onclick="openChatThread(${t.ticket_id})">View / Reply</button></td>
+                    <td><span class="badge ${badgeClass}">${t.status}</span></td>
+                    <td><button class="btn-view" onclick="openChatThread(${t.ticket_id})">View / Reply</button></td>
                 </tr>
             `;
             tbody.innerHTML += row;
@@ -92,10 +96,19 @@ async function openChatThread(ticketId) {
 
         if (response.ok) {
             document.getElementById("chatSubject").innerText = `Ticket #${data.ticket.ticket_id}: ${data.ticket.subject}`;
-            document.getElementById("chatStatus").innerText = data.ticket.status;
             
+            const statusSpan = document.getElementById("chatStatus");
+            statusSpan.innerText = data.ticket.status;
+            statusSpan.className = "badge"; // Reset classes
+            
+            const statusLower = data.ticket.status.toLowerCase();
+            if (statusLower === 'open') statusSpan.classList.add('badge-red');
+            else if (statusLower === 'in progress') statusSpan.classList.add('badge-warning');
+            else if (statusLower === 'resolved') statusSpan.classList.add('badge-success');
+            
+            // 👇 THIS WAS MISSING: Grab the chat box and clear the "Loading..." text
             const chatBox = document.getElementById("chatBox");
-            chatBox.innerHTML = "";
+            chatBox.innerHTML = ""; 
 
             data.replies.forEach(reply => {
                 const isConsumer = reply.sender_role === 'consumer';
@@ -116,6 +129,7 @@ async function openChatThread(ticketId) {
         }
     } catch (error) {
         console.error("Error fetching thread:", error);
+        document.getElementById("chatBox").innerHTML = "Failed to load messages.";
     }
 }
 
@@ -145,6 +159,6 @@ async function sendReply() {
 function openNewTicketModal() { document.getElementById("newTicketModal").style.display = "block"; }
 function closeModal(id) { document.getElementById(id).style.display = "none"; }
 function logout() {
-    localStorage.removeItem('consumer_id');
+    localStorage.removeItem('consumerId');
     window.location.href = "login-consumer.html";
 }

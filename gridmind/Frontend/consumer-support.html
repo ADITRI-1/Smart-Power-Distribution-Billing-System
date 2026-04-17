@@ -5,85 +5,79 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Help Desk - Smart Power</title>
     <link rel="stylesheet" href="css/styles.css">
-    <style>
-        /* Chat styling from Phase 4 */
-        .chat-box { max-height: 400px; overflow-y: auto; padding: 15px; border: 1px solid #ccc; background: #f9f9f9; margin-bottom: 15px; }
-        .message { padding: 10px; margin-bottom: 10px; border-radius: 8px; max-width: 80%; }
-        .msg-consumer { background-color: #d1e7dd; margin-left: auto; text-align: right; }
-        .msg-admin { background-color: #e2e3e5; margin-right: auto; text-align: left; }
-        .msg-time { font-size: 0.8em; color: #666; margin-top: 5px; display: block; }
-        .status-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; }
-        .status-Open { background: #f8d7da; color: #842029; }
-        .status-In-Progress { background: #fff3cd; color: #664d03; }
-        .status-Resolved { background: #d1e7dd; color: #0f5132; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; }
-        .modal-content { background: #fff; width: 50%; margin: 5% auto; padding: 20px; border-radius: 8px; }
-    </style>
 </head>
 <body>
-    <header class="app-header">
-        <div class="logo">⚡ Smart Power</div>
-        <nav class="main-nav">
-            <a href="consumer-dashboard.html">Dashboard</a>
-            <a href="consumer-connections.html">My Connections</a>
-            <a href="consumer-bills.html">My Bills</a>
-            <a href="consumer-profile.html">Profile</a>
-            <a href="consumer-support.html" style="font-weight: bold; text-decoration: underline;">Help Desk</a>
-        </nav>
-        <div class="user-actions">
-            <button onclick="logout()" class="btn-logout">Logout</button>
-        </div>
-    </header>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="consumer-dashboard.html">My Dashboard</a></li>
+                <li><a href="consumer-connections.html">My Smart Meters</a></li>
+                <li><a href="consumer-bills.html">My Bills & Payments</a></li>
+                <li><a href="consumer-profile.html">My Profile</a></li>
+                <li><a href="consumer-support.html" class="active">Help Desk / Support</a></li>
+                <li style="margin-top: 2rem;"><a href="#" class="btn-logout" onclick="logout()">Log Out</a></li>
+            </ul>
+        </aside>
 
-    \
-<!-- *(Make sure to adjust the class names like `app-header` or `main-nav` if your `styles.css` uses different naming conventions for your top navigation bar).*
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Your Support Tickets</h1>
+                <button onclick="openNewTicketModal()" class="btn-add">+ Create New Ticket</button>
+            </div>
 
-Do you want this floating button to strictly act as a hyperlink to the separate `consumer-support.html` page, or would you eventually prefer the button to open the chat window directly as a modal over the current page? -->
-
-    <main style="padding: 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h3>Your Support Tickets</h3>
-            <button onclick="openNewTicketModal()" style="padding: 10px 15px; background: #0d6efd; color: white; border: none; cursor: pointer;">+ Create New Ticket</button>
-        </div>
-
-        <table style="width: 100%; margin-top: 20px; border-collapse: collapse;" border="1">
-            <thead>
-                <tr style="background: #f1f1f1;">
-                    <th>Ticket ID</th>
-                    <th>Subject</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="ticketsTableBody">
-                </tbody>
-        </table>
-    </main>
+            <div class="table-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Ticket ID</th>
+                            <th>Subject</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticketsTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
 
     <div id="newTicketModal" class="modal">
-        <div class="modal-content">
-            <h3>Create a New Support Request</h3>
-            <label>Subject:</label><br>
-            <input type="text" id="ticketSubject" style="width: 100%; padding: 8px; margin-bottom: 10px;"><br>
-            <label>Message:</label><br>
-            <textarea id="ticketMessage" rows="5" style="width: 100%; padding: 8px; margin-bottom: 10px;"></textarea><br>
-            <button onclick="submitTicket()">Submit Ticket</button>
-            <button onclick="closeModal('newTicketModal')">Cancel</button>
+        <div class="modal-content" style="text-align: left;">
+            <span class="close-btn" onclick="closeModal('newTicketModal')">&times;</span>
+            <h2 style="margin-bottom: 1.5rem;">Create a New Support Request</h2>
+            
+            <div class="form-group">
+                <label>Subject:</label>
+                <input type="text" id="ticketSubject" placeholder="Brief subject of your issue">
+            </div>
+            
+            <div class="form-group">
+                <label>Message:</label>
+                <textarea id="ticketMessage" rows="5" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; outline: none; font-family: inherit;" placeholder="Describe your issue in detail..."></textarea>
+            </div>
+            
+            <button class="btn-primary" onclick="submitTicket()">Submit Ticket</button>
         </div>
     </div>
 
     <div id="chatModal" class="modal">
-        <div class="modal-content">
-            <h3 id="chatSubject">Ticket Thread</h3>
-            <p>Status: <span id="chatStatus"></span></p>
+        <div class="modal-content" style="text-align: left; max-width: 600px;">
+            <span class="close-btn" onclick="closeModal('chatModal')">&times;</span>
+            <h2 id="chatSubject" style="margin-bottom: 0.5rem;">Ticket Thread</h2>
+            <p style="margin-bottom: 1.5rem; color: var(--text-muted); font-size: 0.875rem;">
+                Status: <span id="chatStatus" class="badge"></span>
+            </p>
+            
             <div id="chatBox" class="chat-box">
                 </div>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="replyMessage" placeholder="Type your reply here..." style="flex: 1; padding: 10px;">
-                <button onclick="sendReply()">Send Reply</button>
+            
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <input type="text" id="replyMessage" placeholder="Type your reply here..." style="flex: 1; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; outline: none;">
+                <button class="btn-primary" style="margin-top: 0; width: auto;" onclick="sendReply()">Send Reply</button>
             </div>
-            <button onclick="closeModal('chatModal')" style="margin-top: 15px; width: 100%;">Close Window</button>
         </div>
     </div>
 
