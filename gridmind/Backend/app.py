@@ -274,6 +274,64 @@ def get_invoice(bill_id):
         return jsonify(data), 200
     return jsonify({"error": "Invoice data not found"}), 404
 
+# ========================================================
+# HELP DESK & TICKETING SYSTEM ROUTES
+# ========================================================
+
+@app.route('/api/consumer/<int:consumer_id>/tickets', methods=['GET', 'POST'])
+def handle_consumer_tickets(consumer_id):
+    if request.method == 'POST':
+        data = request.json
+        subject = data.get('subject')
+        message = data.get('message')
+        
+        if not subject or not message:
+            return jsonify({"error": "Subject and message are required"}), 400
+            
+        success, msg = dao.create_ticket(consumer_id, subject, message)
+        return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
+        
+    # GET Request: Fetch all tickets for this consumer
+    return jsonify(dao.get_consumer_tickets(consumer_id)), 200
+
+@app.route('/api/admin/tickets', methods=['GET'])
+def admin_get_all_tickets():
+    # Admin route to see all tickets across the grid
+    return jsonify(dao.get_all_tickets()), 200
+
+@app.route('/api/admin/tickets/<int:ticket_id>/status', methods=['PUT'])
+def admin_update_ticket_status(ticket_id):
+    data = request.json
+    status = data.get('status')
+    is_satisfied = data.get('is_satisfied') # Optional, used when resolving
+    
+    if not status:
+        return jsonify({"error": "Status is required"}), 400
+        
+    success, msg = dao.update_ticket_status(ticket_id, status, is_satisfied)
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
+
+@app.route('/api/tickets/<int:ticket_id>/replies', methods=['GET'])
+def get_ticket_conversation(ticket_id):
+    # Shared route: Both Admin and Consumer use this to load the chat history
+    thread_data = dao.get_ticket_thread(ticket_id)
+    if thread_data:
+        return jsonify(thread_data), 200
+    return jsonify({"error": "Ticket not found"}), 404
+
+@app.route('/api/tickets/<int:ticket_id>/reply', methods=['POST'])
+def post_ticket_reply(ticket_id):
+    # Shared route: Both Admin and Consumer use this to send a message
+    data = request.json
+    sender_role = data.get('senderRole') # 'consumer' or 'admin'
+    message = data.get('message')
+    
+    if not sender_role or not message:
+        return jsonify({"error": "Sender role and message are required"}), 400
+        
+    success, msg = dao.add_ticket_reply(ticket_id, sender_role, message)
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
+
 if __name__ == '__main__':
     init_database()
     app.run(debug=True, port=5000)

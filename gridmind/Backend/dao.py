@@ -494,3 +494,140 @@ def get_full_invoice_details(bill_id):
     finally:
         cur.close()
         conn.close()
+
+# ========================================================
+# HELP DESK & TICKETING SYSTEM FUNCTIONS
+# ========================================================
+
+def create_ticket(consumer_id, subject, initial_message):
+    """Creates a new ticket and logs the first message from the consumer."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # 1. Insert the main ticket and get the generated ticket_id
+        cur.execute("""
+            INSERT INTO support_ticket (consumer_id, subject) 
+            VALUES (%s, %s) RETURNING ticket_id
+        """, (consumer_id, subject))
+        ticket_id = cur.fetchone()[0]
+        
+        # 2. Insert the initial message into the thread
+        cur.execute("""
+            INSERT INTO ticket_reply (ticket_id, sender_role, message) 
+            VALUES (%s, 'consumer', %s)
+        """, (ticket_id, initial_message))
+        
+        conn.commit()
+        return True, "Ticket submitted successfully!"
+    except Exception as e:
+        conn.rollback()
+        return False, f"Failed to create ticket: {str(e)}"
+    finally:
+        cur.close()
+        conn.close()
+
+def get_consumer_tickets(consumer_id):
+    """Fetches all tickets for a specific consumer."""
+    return execute_query("""
+        SELECT ticket_id, subject, status, is_satisfied, 
+               TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as created_at 
+        FROM support_ticket 
+        WHERE consumer_id = %s 
+        ORDER BY ticket_id DESC
+    """, (consumer_id,))
+
+def get_all_tickets():
+    """Fetches all tickets for the Admin dashboard, including the consumer's name."""
+    return execute_query("""
+        SELECT t.ticket_id, t.subject, t.status, t.is_satisfied,
+               TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI') as created_at,
+               c.consumer_id, c.full_name as consumer_name
+        FROM support_ticket t
+        JOIN consumer c ON t.consumer_id = c.consumer_id
+        ORDER BY 
+            CASE WHEN t.status = 'Open' THEN 1 
+                 WHEN t.status = 'In Progress' THEN 2 
+                 ELSE 3 END,
+            t.created_at DESC
+    """)
+
+def update_ticket_status(ticket_id, status, is_satisfied=None):
+    """Updates the ticket status. Can also be used to log consumer satisfaction."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if is_satisfied is not None:
+            cur.execute("UPDATE support_ticket SET status = %s, is_satisfied = %s WHERE ticket_id = %s", (status, is_satisfied, ticket_id))
+        else:
+            cur.execute("UPDATE support_ticket SET status = %s WHERE ticket_id = %s", (status, ticket_id))
+        conn.commit()
+        return True, "Ticket updated."
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally:
+        cur.close()
+        conn.close()
+
+def get_ticket_thread(ticket_id):
+    """Fetches the ticket details along with the entire message thread."""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Fetch ticket meta
+        cur.execute("""
+            SELECT t.ticket_id, t.subject, t.status, c.full_name as consumer_name
+            FROM support_ticket t
+            JOIN consumer c ON t.consumer_id = c.consumer_id
+            WHERE t.ticket_id = %s
+        """, (ticket_id,))
+        ticket_meta = cur.fetchone()
+
+        if not ticket_meta:
+            return None
+
+        # Fetch messages chronologically
+        cur.execute("""
+            SELECT sender_role, message, TO_CHAR(sent_at, 'Mon DD, HH24:MI') as timestamp
+            FROM ticket_reply 
+            WHERE ticket_id = %s 
+            ORDER BY sent_at ASC
+        """, (ticket_id,))
+        
+        return {
+            "ticket": ticket_meta,
+            "replies": cur.fetchall()
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+def add_ticket_reply(ticket_id, sender_role, message):
+    """Adds a new message to an existing ticket and updates status if needed."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # 1. Insert the message
+        cur.execute("""
+            INSERT INTO ticket_reply (ticket_id, sender_role, message) 
+            VALUES (%s, %s, %s)
+        """, (ticket_id, sender_role, message))
+
+        # 2. Smart Status Updates (Handling "Counter-Questions")
+        if sender_role == 'admin':
+            # If admin replies, assume they are working on it
+            cur.execute("UPDATE support_ticket SET status = 'In Progress' WHERE ticket_id = %s AND status = 'Open'", (ticket_id,))
+            print(f"📩 SIMULATED NOTIFICATION: User notified of Admin reply on Ticket #{ticket_id}")
+        elif sender_role == 'consumer':
+            # If user replies to a resolved/in-progress ticket, reopen it
+            cur.execute("UPDATE support_ticket SET status = 'Open' WHERE ticket_id = %s AND status != 'Open'", (ticket_id,))
+            print(f"📩 SIMULATED NOTIFICATION: Admin notified of User follow-up on Ticket #{ticket_id}")
+
+        conn.commit()
+        return True, "Reply sent successfully."
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally:
+        cur.close()
+        conn.close()
