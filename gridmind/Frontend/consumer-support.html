@@ -6,7 +6,7 @@
     <title>Help Desk - Smart Power</title>
     <link rel="stylesheet" href="css/styles.css">
     <style>
-        /* Basic styling for the chat thread */
+        /* Chat styling from Phase 4 */
         .chat-box { max-height: 400px; overflow-y: auto; padding: 15px; border: 1px solid #ccc; background: #f9f9f9; margin-bottom: 15px; }
         .message { padding: 10px; margin-bottom: 10px; border-radius: 8px; max-width: 80%; }
         .msg-consumer { background-color: #d1e7dd; margin-left: auto; text-align: right; }
@@ -16,18 +16,29 @@
         .status-Open { background: #f8d7da; color: #842029; }
         .status-In-Progress { background: #fff3cd; color: #664d03; }
         .status-Resolved { background: #d1e7dd; color: #0f5132; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; }
         .modal-content { background: #fff; width: 50%; margin: 5% auto; padding: 20px; border-radius: 8px; }
     </style>
 </head>
 <body>
-    <header>
-        <h2>Smart Power - Help Desk</h2>
-        <nav>
-            <a href="consumer-dashboard.html">Back to Dashboard</a>
-            <button onclick="logout()">Logout</button>
+    <header class="app-header">
+        <div class="logo">⚡ Smart Power</div>
+        <nav class="main-nav">
+            <a href="consumer-dashboard.html">Dashboard</a>
+            <a href="consumer-connections.html">My Connections</a>
+            <a href="consumer-bills.html">My Bills</a>
+            <a href="consumer-profile.html">Profile</a>
+            <a href="consumer-support.html" style="font-weight: bold; text-decoration: underline;">Help Desk</a>
         </nav>
+        <div class="user-actions">
+            <button onclick="logout()" class="btn-logout">Logout</button>
+        </div>
     </header>
+
+    \
+<!-- *(Make sure to adjust the class names like `app-header` or `main-nav` if your `styles.css` uses different naming conventions for your top navigation bar).*
+
+Do you want this floating button to strictly act as a hyperlink to the separate `consumer-support.html` page, or would you eventually prefer the button to open the chat window directly as a modal over the current page? -->
 
     <main style="padding: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
