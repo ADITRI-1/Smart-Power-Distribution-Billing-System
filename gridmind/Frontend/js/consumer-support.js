@@ -1,91 +1,67 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Scoped Variables (Protected from common.js conflicts)
-    const API_BASE = 'http://localhost:5000/api';
     const consumerId = localStorage.getItem('consumerId');
     let currentOpenTicketId = null;
 
-    // Security Check
     if (!consumerId) {
-        alert("Please log in first.");
         window.location.href = "login-consumer.html";
         return;
     }
 
-    // Automatically load tickets on page load
     fetchMyTickets();
 
-    // --- Core Functions ---
     async function fetchMyTickets() {
         try {
             const response = await fetch(`${API_BASE}/consumer/${consumerId}/tickets`);
             const tickets = await response.json();
-            
             const tbody = document.getElementById("ticketsTableBody");
             if (!tbody) return;
             tbody.innerHTML = ""; 
 
-            if (tickets.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='5' style='text-align: center;'>No support tickets found.</td></tr>";
-                return;
-            }
+            if (tickets.length === 0) return tbody.innerHTML = "<tr><td colspan='5' style='text-align: center;'>No support tickets found.</td></tr>";
 
             tickets.forEach(t => {
-                let badgeClass = 'badge-gray';
-                if (t.status === 'Open') badgeClass = 'badge-red';
-                else if (t.status === 'In Progress') badgeClass = 'badge-blue';
-                else if (t.status === 'Resolved') badgeClass = 'badge-green';
+                let badgeClass = t.status === 'Open' ? 'badge-red' : (t.status === 'In Progress' ? 'badge-blue' : 'badge-green');
                 
-                const row = `
+                // BEAUTIFUL THREAD BUTTON
+                const viewBtn = `<button class="btn-action btn-thread" onclick="openChatThread(${t.ticket_id})">View / Reply</button>`;
+                
+                tbody.innerHTML += `
                     <tr>
                         <td>#${t.ticket_id}</td>
                         <td>${t.subject}</td>
                         <td>${t.created_at}</td>
                         <td><span class="badge ${badgeClass}">${t.status}</span></td>
-                        <td><button class="pay-btn-table" onclick="openChatThread(${t.ticket_id})">View / Reply</button></td>
+                        <td class="action-icons">${viewBtn}</td>
                     </tr>
                 `;
-                tbody.innerHTML += row;
             });
-        } catch (error) {
-            console.error("Error fetching tickets:", error);
-        }
+        } catch (error) { console.error("Error fetching tickets:", error); }
     }
 
-    // --- Window-Attached Functions (Required for HTML onclicks) ---
     window.submitTicket = async function() {
         const subject = document.getElementById("ticketSubject").value.trim();
         const message = document.getElementById("ticketMessage").value.trim();
-
-        if (!subject || !message) {
-            alert("Please provide both a subject and a message.");
-            return;
-        }
+        if (!subject || !message) return alert("Please provide both a subject and a message.");
 
         try {
             const response = await fetch(`${API_BASE}/consumer/${consumerId}/tickets`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ subject, message })
             });
-
             const result = await response.json();
             if (response.ok) {
                 alert(result.message);
                 closeModal('newTicketModal');
                 document.getElementById("ticketSubject").value = "";
                 document.getElementById("ticketMessage").value = "";
-                fetchMyTickets(); // Refresh table
-            } else {
-                alert(result.error);
-            }
-        } catch (error) {
-            console.error("Error submitting ticket:", error);
-        }
+                fetchMyTickets(); 
+            } else alert(result.error);
+        } catch (error) { console.error("Error:", error); }
     }
 
     window.openChatThread = async function(ticketId) {
         currentOpenTicketId = ticketId;
-        document.getElementById("chatModal").style.display = "block";
+        document.getElementById("chatModal").style.display = "flex"; 
         document.getElementById("chatBox").innerHTML = "Loading messages...";
 
         try {
@@ -103,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isConsumer = reply.sender_role === 'consumer';
                     const msgClass = isConsumer ? 'msg-consumer' : 'msg-admin';
                     const senderName = isConsumer ? "You" : "Support Admin";
-
                     chatBox.innerHTML += `
                         <div class="message ${msgClass}">
                             <strong>${senderName}</strong><br>
@@ -112,13 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     `;
                 });
-                
-                // Auto-scroll to bottom of chat
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
-        } catch (error) {
-            console.error("Error fetching thread:", error);
-        }
+        } catch (error) { console.error("Error fetching thread:", error); }
     }
 
     window.sendReply = async function() {
@@ -127,26 +98,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const response = await fetch(`${API_BASE}/tickets/${currentOpenTicketId}/reply`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ senderRole: "consumer", message: message })
             });
-
             if (response.ok) {
                 document.getElementById("replyMessage").value = ""; 
-                openChatThread(currentOpenTicketId); // Refresh modal to show new message
-                fetchMyTickets(); // Refresh background table 
+                openChatThread(currentOpenTicketId); 
+                fetchMyTickets(); 
             }
-        } catch (error) {
-            console.error("Error sending reply:", error);
-        }
+        } catch (error) { console.error("Error sending reply:", error); }
     }
 
-    // Modal Display Controls
-    window.openNewTicketModal = function() { 
-        document.getElementById("newTicketModal").style.display = "block"; 
-    }
-    window.closeModal = function(id) { 
-        document.getElementById(id).style.display = "none"; 
-    }
+    window.openNewTicketModal = function() { document.getElementById("newTicketModal").style.display = "flex"; }
 });

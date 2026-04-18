@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE = 'http://localhost:5000/api';
     const path = window.location.pathname.toLowerCase();
     
-    // Strict Security Check: Must have a verified Consumer ID
+    // Strict Security Check
     const consumerId = localStorage.getItem('consumerId');
     if (!consumerId) {
         alert("Session invalid. Please log in again.");
@@ -31,19 +31,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.innerHTML = '';
                 const recent = data.slice(0, 3); 
                 
-                if(recent.length === 0) {
-                    return tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No recent bills.</td></tr>';
-                }
+                if(recent.length === 0) return tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No recent bills.</td></tr>';
                 
                 recent.forEach(row => {
                     let badge = row.status === 'Paid' ? 'badge-blue' : (row.status === 'Overdue' ? 'badge-red' : 'badge-gray');
-                    
-                    // Aesthetic Pay & PDF Buttons
                     let action = row.status !== 'Paid' 
                         ? `<button class="btn-action btn-pay" onclick="openPaymentModal(${row.bill_id}, ${row.amount})">Pay Now</button>` 
                         : `<span style="color:var(--primary-green); font-weight:700; padding: 6px 14px;">✔️ Paid</span>`;
                     
-                    action += `<button class="btn-action btn-pdf" style="margin-left: 8px;" onclick="downloadInvoice(${row.bill_id})">PDF</button>`;
+                    action += `<button class="btn-action btn-pdf" style="margin-left: 8px;" onclick="downloadInvoice(${row.bill_id})">CSV Bill</button>`;
                     
                     tbody.innerHTML += `<tr>
                         <td>${row.month}</td><td>${row.connection_id}</td><td>₹${parseFloat(row.amount).toLocaleString()}</td>
@@ -88,12 +84,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.innerHTML = '';
                 data.forEach(row => {
                     let badge = row.status === 'Paid' ? 'badge-blue' : (row.status === 'Overdue' ? 'badge-red' : 'badge-gray');
-                    
                     let action = row.status !== 'Paid' 
                         ? `<button class="btn-action btn-pay" onclick="openPaymentModal(${row.bill_id}, ${row.amount})">Pay Now</button>` 
                         : `<span style="color:var(--primary-green); font-weight:700; padding: 6px 14px;">✔️ Paid</span>`;
                     
-                    action += `<button class="btn-action btn-pdf" style="margin-left: 8px;" onclick="downloadInvoice(${row.bill_id})">PDF</button>`;
+                    action += `<button class="btn-action btn-pdf" style="margin-left: 8px;" onclick="downloadInvoice(${row.bill_id})">CSV Bill</button>`;
                     
                     tbody.innerHTML += `<tr>
                         <td>${row.month}</td><td>${row.connection_id}</td><td>₹${parseFloat(row.amount).toLocaleString()}</td>
@@ -126,27 +121,66 @@ document.addEventListener('DOMContentLoaded', () => {
             const age = document.getElementById('p_age').value;
             const password = document.getElementById('p_password').value;
 
-            // Strict Frontend Validation
             if (password && !window.isValidPassword(password)) {
                 return alert("New password must contain at least 8 characters, 1 uppercase letter, 1 number, and 1 symbol.");
             }
 
             try {
                 const res = await fetch(`${API_BASE}/consumer/${consumerId}/profile`, { 
-                    method: 'PUT', 
-                    headers: {'Content-Type': 'application/json'}, 
+                    method: 'PUT', headers: {'Content-Type': 'application/json'}, 
                     body: JSON.stringify({name, address, age, password}) 
                 });
                 const result = await res.json();
-                
                 alert(result.message || result.error);
-                
-                // Clear password field on success to prevent accidental resubmission
                 if(res.ok) document.getElementById('p_password').value = '';
-                
-            } catch(err) { 
-                alert("Server error while updating profile."); 
-            }
+            } catch(err) { alert("Server error."); }
         });
     }
 });
+
+// =========================================================
+// THE FIX: WORKING PAYMENT MODAL FOR CONSUMERS
+// =========================================================
+window.openPaymentModal = function(billId, amount) {
+    let existing = document.getElementById('paymentModal');
+    if(existing) existing.remove();
+
+    const modalHtml = `
+        <div id="paymentModal" class="modal-overlay dynamic-modal" style="display:flex;">
+            <div class="modal-content" style="max-width: 400px; text-align: center;">
+                <div class="modal-header">
+                    <h2>Complete Your Payment</h2>
+                    <span class="close-btn" onclick="closeModal('paymentModal')">✕</span>
+                </div>
+                <p style="color: #4B5563; margin-bottom: 20px; font-weight: 600;">Paying Bill #${billId} - Amount: ₹${parseFloat(amount).toLocaleString()}</p>
+                <div style="background: #F8FAFC; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #E2E8F0;">
+                    <p style="font-weight: 700; margin-bottom: 10px; color: #0F172A;">Scan to Pay</p>
+                    <div style="width: 150px; height: 150px; background: #E2E8F0; margin: 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                        <span style="font-size: 3rem;">📱</span>
+                    </div>
+                </div>
+                <button class="btn-primary" id="simulateSuccessBtn" onclick="submitConsumerPayment(${billId})" style="width: 100%;">Simulate Payment Success</button>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+window.submitConsumerPayment = async function(billId) {
+    const btn = document.getElementById('simulateSuccessBtn');
+    btn.innerText = "Processing...";
+    btn.disabled = true;
+
+    try {
+        const API_BASE = 'http://localhost:5000/api';
+        const res = await fetch(`${API_BASE}/bills/${billId}/pay`, { method: 'POST' });
+        const data = await res.json();
+        alert(data.message || data.error);
+        if (res.ok) window.location.reload();
+    } catch (e) {
+        alert("Server error processing payment.");
+    } finally {
+        if(btn) { btn.innerText = "Simulate Payment Success"; btn.disabled = false; }
+        closeModal('paymentModal');
+    }
+};
