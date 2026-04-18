@@ -19,12 +19,22 @@ window.closeModal = function(modalId) {
 
 // Global Logout Function
 window.logout = function() {
-    // 1. Clear the saved session data (like the consumerId)
-    localStorage.clear();
+    // 1. Clear any stored authentication data
+    localStorage.removeItem('consumerId');
     
-    // 2. Kick the user back to the login screen
-    window.location.replace('login-consumer.html'); 
-};
+    // 2. Look at the current page's URL
+    const currentPath = window.location.pathname.toLowerCase();
+    
+    // 3. Route back to the correct login screen based on the portal
+    // Since all consumer pages start with 'consumer-' (e.g., consumer-dashboard.html)
+    if (currentPath.includes('consumer')) {
+        window.location.replace("login-consumer.html");
+    } else {
+        // If the URL doesn't have 'consumer' in it, assume it's the Admin portal 
+        // (e.g., dashboard.html, bills.html, admin-support.html)
+        window.location.replace("login-admin.html");
+    }
+}
 
 // ==========================================
 // UNIVERSAL PDF INVOICE GENERATOR (100% FIXED)
