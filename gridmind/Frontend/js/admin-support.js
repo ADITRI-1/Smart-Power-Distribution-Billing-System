@@ -1,141 +1,148 @@
-const API_BASE = 'http://localhost:5000/api';
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Scoped Variables
+    const API_BASE = 'http://localhost:5000/api';
+    let currentAdminTicketId = null;
 
-// Automatically load the tickets as soon as the page opens
-document.addEventListener("DOMContentLoaded", loadAdminTickets);
+    // Automatically load all grid tickets on page load
+    fetchAllTickets();
 
-let currentAdminTicketId = null;
-
-async function loadAdminTickets() {
-    try {
-        const response = await fetch(`${API_BASE}/admin/tickets`);
-        const tickets = await response.json();
-        
-        const tbody = document.getElementById("adminTicketsTableBody");
-        if (!tbody) return;
-        tbody.innerHTML = ""; 
-
-        if (tickets.length === 0) {
-            tbody.innerHTML = "<tr><td colspan='6' style='text-align: center;'>No active support tickets.</td></tr>";
-            return;
-        }
-
-        tickets.forEach(t => {
-            // Colors matching your admin dashboard badges
-            let badgeClass = 'badge-gray';
-            if (t.status === 'Open') badgeClass = 'badge-red'; // Needs attention!
-            else if (t.status === 'In Progress') badgeClass = 'badge-blue';
-            else if (t.status === 'Resolved') badgeClass = 'badge-green';
+    // --- Core Functions ---
+    async function fetchAllTickets() {
+        try {
+            const response = await fetch(`${API_BASE}/admin/tickets`);
+            const tickets = await response.json();
             
-            const row = `
-                <tr>
-                    <td>#${t.ticket_id}</td>
-                    <td><strong>${t.consumer_name}</strong> (ID: ${t.consumer_id})</td>
-                    <td>${t.subject}</td>
-                    <td>${t.created_at}</td>
-                    <td><span class="badge ${badgeClass}">${t.status}</span></td>
-                    <td><button class="pay-btn-table" onclick="openAdminChat(${t.ticket_id})">View / Reply</button></td>
-                </tr>
-            `;
-            tbody.innerHTML += row;
-        });
-    } catch (error) {
-        console.error("Error fetching admin tickets:", error);
-    }
-}
+            const tbody = document.getElementById("adminTicketsTableBody");
+            if (!tbody) return;
+            tbody.innerHTML = ""; 
 
-// Ensure tickets load if the admin clicks the sidebar tab
-// Note: If you have a specific showSection() function in your file, 
-// you may want to call loadAdminTickets() inside that function when 'supportSection' is active.
-document.addEventListener('click', (e) => {
-    if (e.target.innerText.includes('Help Desk')) {
-        loadAdminTickets();
-    }
-});
+            if (tickets.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='6' style='text-align: center;'>No support tickets found.</td></tr>";
+                return;
+            }
 
-// --- 2. Open Chat Thread ---
-async function openAdminChat(ticketId) {
-    currentAdminTicketId = ticketId;
-    document.getElementById("adminChatModal").style.display = "block";
-    document.getElementById("adminChatBox").innerHTML = "Loading...";
-
-    try {
-        const response = await fetch(`${API_BASE}/tickets/${ticketId}/replies`);
-        const data = await response.json();
-
-        if (response.ok) {
-            document.getElementById("adminChatSubject").innerText = `Ticket #${data.ticket.ticket_id}: ${data.ticket.subject}`;
-            document.getElementById("adminChatStatus").innerText = `Status: ${data.ticket.status}`;
-            
-            const chatBox = document.getElementById("adminChatBox");
-            chatBox.innerHTML = "";
-
-            data.replies.forEach(reply => {
-                const isAdmin = reply.sender_role === 'admin';
-                // Admin sees their own messages on the right, consumer on the left
-                const alignment = isAdmin ? 'margin-left: auto; text-align: right; background-color: #d1e7dd;' : 'margin-right: auto; text-align: left; background-color: #e2e3e5;';
-                const senderName = isAdmin ? "You (Admin)" : data.ticket.consumer_name;
-
-                chatBox.innerHTML += `
-                    <div style="padding: 10px; margin-bottom: 10px; border-radius: 8px; max-width: 80%; ${alignment}">
-                        <strong>${senderName}</strong><br>
-                        ${reply.message}
-                        <span style="font-size: 0.8em; color: #666; margin-top: 5px; display: block;">${reply.timestamp}</span>
-                    </div>
+            tickets.forEach(t => {
+                // Determine Badge Color based on CSS classes
+                let badgeClass = 'badge-gray';
+                if (t.status === 'Open') badgeClass = 'badge-red';
+                else if (t.status === 'In Progress') badgeClass = 'badge-blue';
+                else if (t.status === 'Resolved') badgeClass = 'badge-green';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td>#${t.ticket_id}</td>
+                        <td><strong>${t.consumer_name}</strong><br><span style="font-size: 0.8em; color: #666;">ID: #${t.consumer_id}</span></td>
+                        <td>${t.subject}</td>
+                        <td>${t.created_at}</td>
+                        <td><span class="badge ${badgeClass}">${t.status}</span></td>
+                        <td>
+                            <button onclick="openAdminChatThread(${t.ticket_id})" class="btn-view">View Thread</button>
+                        </td>
+                    </tr>
                 `;
             });
-            chatBox.scrollTop = chatBox.scrollHeight;
+        } catch (error) {
+            console.error("Error fetching tickets:", error);
         }
-    } catch (error) {
-        console.error("Error fetching thread:", error);
     }
-}
 
-// --- 3. Send Reply ---
-async function sendAdminReply() {
-    const message = document.getElementById("adminReplyMessage").value.trim();
-    if (!message || !currentAdminTicketId) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/tickets/${currentAdminTicketId}/reply`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ senderRole: "admin", message: message })
-        });
-
-        if (response.ok) {
-            document.getElementById("adminReplyMessage").value = ""; 
-            openAdminChat(currentAdminTicketId); // Reload thread
-            loadAdminTickets(); // Refresh table (status auto-changes to 'In Progress')
+    // --- Chat Modal & Thread Logic ---
+    window.openAdminChatThread = async function(ticketId) {
+        currentAdminTicketId = ticketId;
+        document.getElementById('adminChatModal').style.display = 'block';
+        
+        try {
+            const response = await fetch(`${API_BASE}/tickets/${ticketId}/replies`);
+            const data = await response.json();
+            
+            if (data.ticket) {
+                // Update Modal Headers
+                document.getElementById('adminChatSubject').innerText = `Ticket #${data.ticket.ticket_id}: ${data.ticket.subject}`;
+                
+                let badgeClass = 'badge-gray';
+                if (data.ticket.status === 'Open') badgeClass = 'badge-red';
+                else if (data.ticket.status === 'In Progress') badgeClass = 'badge-blue';
+                else if (data.ticket.status === 'Resolved') badgeClass = 'badge-green';
+                
+                const statusSpan = document.getElementById('adminChatStatus');
+                statusSpan.className = `badge ${badgeClass}`;
+                statusSpan.innerText = data.ticket.status;
+                
+                // Populate Chat Box
+                const chatBox = document.getElementById('adminChatBox');
+                chatBox.innerHTML = '';
+                
+                data.replies.forEach(reply => {
+                    // In the Admin View, the Admin is "self" (right side) and Consumer is "other" (left side)
+                    const isSelf = reply.sender_role === 'admin';
+                    const msgClass = isSelf ? 'msg-self' : 'msg-other';
+                    const senderName = isSelf ? 'Admin Support' : data.ticket.consumer_name;
+                    
+                    chatBox.innerHTML += `
+                        <div class="message ${msgClass}">
+                            <strong>${senderName}</strong><br>
+                            ${reply.message}
+                            <span class="msg-time">${reply.timestamp}</span>
+                        </div>
+                    `;
+                });
+                
+                // Auto-scroll to bottom of chat
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        } catch (error) {
+            console.error("Error fetching thread:", error);
         }
-    } catch (error) {
-        console.error("Error sending admin reply:", error);
     }
-}
 
-// --- 4. Mark Ticket Resolved ---
-async function resolveTicket() {
-    if (!currentAdminTicketId || !confirm("Are you sure you want to close this ticket?")) return;
+    window.sendAdminReply = async function() {
+        const message = document.getElementById("adminReplyMessage").value.trim();
+        if (!message || !currentAdminTicketId) return;
 
-    try {
-        const response = await fetch(`${API_BASE}/admin/tickets/${currentAdminTicketId}/status`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "Resolved" })
-        });
+        try {
+            const response = await fetch(`${API_BASE}/tickets/${currentAdminTicketId}/reply`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ senderRole: "admin", message: message }) // Notice senderRole is admin
+            });
 
-        if (response.ok) {
-            alert("Ticket marked as Resolved.");
-            openAdminChat(currentAdminTicketId); // Reload to show new status
-            loadAdminTickets(); // Refresh table
+            if (response.ok) {
+                document.getElementById("adminReplyMessage").value = ""; 
+                openAdminChatThread(currentAdminTicketId); // Refresh thread
+                fetchAllTickets(); // Refresh background table so status updates to "In Progress"
+            }
+        } catch (error) {
+            console.error("Error sending reply:", error);
         }
-    } catch (error) {
-        console.error("Error resolving ticket:", error);
     }
-}
 
-function closeAdminModal() { 
-    document.getElementById("adminChatModal").style.display = "none"; 
-    currentAdminTicketId = null;
-}
+    // --- Resolve Ticket Logic ---
+    window.resolveTicket = async function() {
+        if (!currentAdminTicketId) return;
+        
+        if (confirm("Are you sure you want to mark this ticket as resolved?")) {
+            try {
+                const response = await fetch(`${API_BASE}/admin/tickets/${currentAdminTicketId}/status`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "Resolved" })
+                });
+
+                if (response.ok) {
+                    openAdminChatThread(currentAdminTicketId); // Refresh modal to show green resolved badge
+                    fetchAllTickets(); // Update background table
+                }
+            } catch (error) {
+                console.error("Error resolving ticket:", error);
+            }
+        }
+    }
+
+    // Modal Display Controls
+    window.closeAdminModal = function() { 
+        document.getElementById("adminChatModal").style.display = "none"; 
+        currentAdminTicketId = null;
+    }
+});
 
 // ... (rest of the openAdminChat, sendAdminReply, resolveTicket functions) ...
