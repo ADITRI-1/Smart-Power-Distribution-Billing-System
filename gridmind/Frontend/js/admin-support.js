@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const API_BASE = 'http://localhost:5000/api';
     let currentAdminTicketId = null;
 
     fetchAllTickets();
@@ -19,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (t.status === 'In Progress') badgeClass = 'badge-blue';
                 else if (t.status === 'Resolved') badgeClass = 'badge-green';
                 
-                // BEAUTIFUL THREAD BUTTON
                 const viewBtn = `<button class="btn-action btn-thread" onclick="openAdminChatThread(${t.ticket_id})">View Thread</button>`;
 
                 tbody.innerHTML += `
@@ -38,23 +38,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.openAdminChatThread = async function(ticketId) {
         currentAdminTicketId = ticketId;
-        document.getElementById('adminChatModal').style.display = 'flex'; 
+        const modal = document.getElementById('adminChatModal');
+        modal.style.display = 'flex'; 
         
         try {
             const response = await fetch(`${API_BASE}/tickets/${ticketId}/replies`);
             const data = await response.json();
             
             if (data.ticket) {
+                // Update Subject
                 document.getElementById('adminChatSubject').innerText = `Ticket #${data.ticket.ticket_id}: ${data.ticket.subject}`;
                 
+                // Update Status Badge
                 let badgeClass = 'badge-gray';
                 if (data.ticket.status === 'Open') badgeClass = 'badge-red';
                 else if (data.ticket.status === 'In Progress') badgeClass = 'badge-blue';
                 else if (data.ticket.status === 'Resolved') badgeClass = 'badge-green';
                 
-                const statusSpan = document.getElementById('adminChatStatus');
-                statusSpan.className = `badge ${badgeClass}`;
-                statusSpan.innerText = data.ticket.status;
+                const statusArea = document.getElementById('adminChatStatusArea'); // Ensure this ID exists in your HTML modal header
+                if (statusArea) {
+                    let statusHtml = `<span class="badge ${badgeClass}" id="adminChatStatus">${data.ticket.status}</span>`;
+                    
+                    // ADDING THE AESTHETIC RESOLVE BUTTON NEXT TO STATUS
+                    if (data.ticket.status !== 'Resolved') {
+                        statusHtml += `<button class="btn-action btn-resolve" style="margin-left: 15px;" onclick="resolveTicket()">Mark as Resolved</button>`;
+                    }
+                    statusArea.innerHTML = statusHtml;
+                }
                 
                 const chatBox = document.getElementById('adminChatBox');
                 chatBox.innerHTML = '';
@@ -95,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.resolveTicket = async function() {
         if (!currentAdminTicketId) return;
-        if (confirm("Mark this ticket as resolved?")) {
+        if (confirm("Are you sure you want to mark this ticket as resolved? This will notify the consumer.")) {
             try {
                 const response = await fetch(`${API_BASE}/admin/tickets/${currentAdminTicketId}/status`, {
                     method: "PUT", headers: { "Content-Type": "application/json" },

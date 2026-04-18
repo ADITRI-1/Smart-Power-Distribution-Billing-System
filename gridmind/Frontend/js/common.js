@@ -56,6 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const addBtn = document.querySelector('.btn-add');
         if (addBtn) {
             addBtn.addEventListener('click', () => {
+                // FIX: Remove any existing modal first so they don't overlap and break the submit button!
+                let existingModal = document.getElementById('addConsModal');
+                if (existingModal) existingModal.remove();
+
                 const modalHtml = `
                     <div id="addConsModal" class="modal-overlay dynamic-modal" style="display:flex;">
                         <div class="modal-content" style="max-width: 450px;">
@@ -68,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="form-group"><label>Age</label><input type="number" id="m_age"></div>
                             </div>
                             <div class="form-group"><label>Full Name</label><input type="text" id="m_name"></div>
-                            <div class="form-group"><label>Email Address</label><input type="email" id="consumerEmail" placeholder="e.g. user@example.com"></div>
+                            <div class="form-group"><label>Email Address</label><input type="email" id="consumerEmail" placeholder="Optional: user@example.com"></div>
                             <div class="form-group"><label>Permanent Address</label><input type="text" id="m_addr"></div>
                             <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
                             <h3 style="margin-bottom: 10px; color: #4B5563; font-size: 14px;">Portal Login Credentials</h3>
@@ -83,17 +87,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('submitConsBtn').addEventListener('click', async () => {
                     const id = document.getElementById('m_cons_id').value;
                     const name = document.getElementById('m_name').value;
-                    const email = document.getElementById('consumerEmail').value;
+                    const email = document.getElementById('consumerEmail').value.trim(); // Trim spaces
                     const address = document.getElementById('m_addr').value;
                     const age = document.getElementById('m_age').value;
-                    const username = document.getElementById('m_username').value;
+                    const username = document.getElementById('m_username').value.trim();
                     const password = document.getElementById('m_password').value;
 
-                    if(!id || !name || !address || !age || !username || !password) return alert("Fill all fields!");
+                    if(!id || !name || !address || !age || !username || !password) return alert("Please fill all required fields!");
 
                     if (!window.isValidPassword(password)) {
                         return alert("Password must contain at least 8 characters, 1 uppercase letter, 1 number, and 1 symbol.");
                     }
+
+                    // Disable button to prevent double-clicks
+                    document.getElementById('submitConsBtn').innerText = "Creating...";
+                    document.getElementById('submitConsBtn').disabled = true;
 
                     try {
                         const res = await fetch(`${API_BASE}/consumers`, { 
@@ -101,8 +109,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({id, name, email, address, age, username, password})
                         });
                         const data = await res.json();
-                        if(res.ok) window.location.reload(); else alert(data.error);
-                    } catch(e) { alert("Server Error."); }
+                        
+                        if(res.ok) {
+                            window.location.reload(); 
+                        } else {
+                            // FIX: Safely display whichever error comes back
+                            alert("Failed to create: " + (data.error || data.message || "Unknown error occurred"));
+                            document.getElementById('submitConsBtn').innerText = "Create Consumer";
+                            document.getElementById('submitConsBtn').disabled = false;
+                        }
+                    } catch(e) { 
+                        alert("Server Error. Ensure your Flask backend is running."); 
+                        document.getElementById('submitConsBtn').innerText = "Create Consumer";
+                        document.getElementById('submitConsBtn').disabled = false;
+                    }
                 });
             });
         }

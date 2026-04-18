@@ -14,6 +14,7 @@
                 <li><a href="consumer-connections.html">My Smart Meters</a></li>
                 <li><a href="consumer-bills.html">My Bills & Payments</a></li>
                 <li><a href="consumer-profile.html">My Profile</a></li>
+                <li><a href="consumer-support.html">Help Desk</a></li>
                 <li style="margin-top: 2rem;"><a href="#" class="btn-logout" onclick="logout()">Log Out</a></li>
             </ul>
         </aside>
@@ -23,17 +24,17 @@
                 <h1 id="welcomeMessage">My Dashboard</h1>
             </div>
 
-            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="stats-grid">
                 <div class="stat-card">
-                    <h3>Active Smart Meters</h3>
+                    <div class="stat-title">Active Meters</div>
                     <div class="stat-value" id="stat-meters">0</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Pending Bills</h3>
+                    <div class="stat-title">Unpaid Bills</div>
                     <div class="stat-value" id="stat-unpaid">0</div>
                 </div>
-                <div class="stat-card" style="border-left: 4px solid var(--primary-red);">
-                    <h3>Total Amount Due</h3>
+                <div class="stat-card">
+                    <div class="stat-title">Total Amount Due</div>
                     <div class="stat-value text-red" id="stat-due">₹0.00</div>
                 </div>
             </div>
@@ -42,30 +43,38 @@
             <div class="table-card">
                 <table class="data-table" id="recentBillsTable">
                     <thead>
-                        <tr><th>Month</th><th>Conn ID</th><th>Amount</th><th>Status</th><th>Due Date</th><th>Action</th></tr>
+                        <tr>
+                            <th>Month</th>
+                            <th>Conn ID</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Due Date</th>
+                            <th>Action</th>
+                        </tr>
                     </thead>
-                    <tbody></tbody>
+                    <tbody>
+                        </tbody>
                 </table>
             </div>
         </main>
     </div>
-    <script src="js/common.js"></script>
-    <script src="js/consumer-portal.js"></script>
 
-    <div id="paymentModal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closePaymentModal()">&times;</span>
-            <h2>Complete Your Payment</h2>
-            <p id="paymentDetails">Paying Bill #... Amount: ₹...</p>
-            <img src="images/qr.png" alt="UPI QR Code" class="qr-code">
-            <p class="timer">Awaiting payment... <span id="countdown">04:59</span></p>
-            <button id="simulateSuccessBtn" class="pay-btn">Simulate Payment Success</button>
+    <div id="paymentModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div class="modal-header">
+                <h2>Secure Payment</h2>
+                <span class="close-btn" onclick="closeModal('paymentModal')">✕</span>
+            </div>
+            <p id="paymentDetails" style="color: #4B5563; margin-bottom: 20px; font-weight: 600;"></p>
+            <div style="background: #F8FAFC; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #E2E8F0;">
+                <p style="font-weight: 700; margin-bottom: 15px; color: #0F172A; text-transform: uppercase; font-size: 0.75rem;">Scan QR to Pay</p>
+                <img src="images/qr.png" alt="Payment QR" style="width: 180px; height: 180px; margin: 0 auto; display: block; border-radius: 8px; background: white; padding: 5px; border: 1px solid #CBD5E1;">
+            </div>
+            <button class="btn-primary" id="simulateSuccessBtn" style="width: 100%;">Confirm Payment</button>
         </div>
     </div>
 
-    <a href="consumer-support.html" class="floating-support-btn" title="Help Desk">
-        💬
-    </a>
-    
+    <script src="js/common.js"></script>
+    <script src="js/consumer-portal.js"></script>
 </body>
 </html>

@@ -51,21 +51,22 @@
     <div id="adminChatModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="adminChatSubject">Ticket Thread</h2>
-                <div style="display: flex; align-items: center; gap: 1rem;">
-                    <span id="adminChatStatus" class="badge"></span>
-                    <span class="close-btn" onclick="closeAdminModal()">&times;</span>
+                <div>
+                    <h2 id="adminChatSubject">Ticket Thread</h2>
+                    <div id="adminChatStatusArea" style="margin-top: 8px; display: flex; align-items: center;">
+                        </div>
                 </div>
+                <span class="close-btn" onclick="closeAdminModal()">✕</span>
             </div>
-
             <div id="adminChatBox" class="chat-box">
                 </div>
 
             <div style="display: flex; gap: 10px; align-items: center; margin-top: 15px;">
-                <input type="text" id="adminReplyMessage" placeholder="Type your response to the consumer..." style="flex: 1; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; outline: none;">
+                <input type="text" id="adminReplyMessage" placeholder="Type your response to the consumer..." 
+                       style="flex: 1; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; outline: none;">
                 <button onclick="sendAdminReply()" class="btn-add">Send Reply</button>
-                <button onclick="resolveTicket()" class="btn-view" style="background-color: #10B981; margin-left: auto;">✔ Mark Resolved</button>
-            </div>
+                
+                </div>
         </div>
     </div>
 

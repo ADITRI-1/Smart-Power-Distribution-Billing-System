@@ -137,6 +137,22 @@ body { background-color: var(--bg-light); color: var(--text-main); }
     text-transform: uppercase;
     letter-spacing: 0.5px;
     background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Specific Style for Mark as Resolved */
+.btn-resolve { 
+    border-color: #10B981; 
+    color: #10B981; 
+} 
+
+.btn-resolve:hover { 
+    background-color: #10B981; 
+    color: white; 
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3); 
+    transform: translateY(-1px);
 }
 
 .btn-view { border-color: #0284C7; color: #0284C7; } 

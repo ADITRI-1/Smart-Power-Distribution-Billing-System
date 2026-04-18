@@ -111,15 +111,30 @@ def forgot_password():
 def consumers():
     if request.method == 'POST':
         data = request.json
-        # STRICT ENFORCEMENT ON NEW CONSUMER CREATION
-        if not is_strong_password(data['password']):
+        
+        # 1. Strict Password Check
+        if not is_strong_password(data.get('password')):
             return jsonify({"error": "Password must have 8+ chars, 1 uppercase, 1 number, 1 symbol."}), 400
             
+        # 2. FIX: Convert empty email string to None for SQL NULL compatibility
+        email_val = data.get('email')
+        email = email_val.strip() if email_val and email_val.strip() != "" else None
+        
         pw_hash = generate_password_hash(data['password'])
-        success, msg = dao.add_consumer(data['id'], data['name'], data['address'], data['age'], data['username'], pw_hash, data.get('email'))
-        return jsonify({"message": msg}), 201 if success else 400
+        
+        # 3. Call DAO
+        success, msg = dao.add_consumer(
+            data['id'], data['name'], data['address'], 
+            data['age'], data['username'], pw_hash, email
+        )
+        
+        if success:
+            return jsonify({"message": msg}), 201
+        else:
+            # Send the specific database error back to the frontend
+            return jsonify({"error": msg}), 400
+            
     return jsonify(dao.get_consumers())
-
 @app.route('/api/consumer/<int:consumer_id>/profile', methods=['GET', 'PUT'])
 def consumer_profile(consumer_id):
     if request.method == 'PUT':
@@ -265,3 +280,5 @@ def delete_record(table_name, record_id):
 if __name__ == '__main__':
     init_database()
     app.run(debug=True, port=5000)
+
+from datetime import datetime

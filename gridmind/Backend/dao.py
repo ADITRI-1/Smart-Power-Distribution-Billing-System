@@ -34,6 +34,25 @@ def execute_modify(query, params=None):
         return False, f"Database Error: {str(e)}"
     finally: cur.close(); conn.close()
 
+# ==========================================
+# LAZY UPDATE MECHANISM (Fixes the Overdue Bug)
+# ==========================================
+def check_and_update_overdue_bills():
+    """Passively checks and updates bills that have crossed their due date."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE bill SET payment_status = 'Overdue' WHERE payment_status = 'Unpaid' AND due_date < CURRENT_DATE")
+        conn.commit()
+    except:
+        pass # Silently fail if DB is locked, it will catch it next time
+    finally:
+        cur.close()
+        conn.close()
+
+# ==========================================
+# LOGIN & AUTHENTICATION
+# ==========================================
 def check_and_get_user(username, login_type):
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -80,13 +99,28 @@ def reset_password_with_token(email, token, new_password_hash, login_type):
         return False, str(e)
     finally: cur.close(); conn.close()
 
+# ==========================================
+# FETCH DATA
+# ==========================================
 def get_grids(): return execute_query("SELECT grid_id, grid_name, location FROM power_grid ORDER BY grid_id")
 def get_areas(): return execute_query("SELECT area_id, zone, city, grid_id, poc FROM distribution_area ORDER BY area_id")
 def get_consumers(): return execute_query("SELECT consumer_id, full_name, permanent_address as address, age FROM consumer ORDER BY consumer_id")
-def get_connections(): return execute_query("SELECT connection_id, consumer_id, area_id, connection_type, load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, status FROM connection ORDER BY connection_id")
+def get_connections(): 
+    return execute_query("SELECT connection_id, consumer_id, area_id, connection_type, load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, status FROM connection ORDER BY connection_id")
 def get_readings(): return execute_query("SELECT reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed FROM meter_reading ORDER BY reading_id DESC")
-def get_bills(): return execute_query("SELECT bill_id, COALESCE(consumer_id, 0) as consumer_id, COALESCE(connection_id, 0) as connection_id, billing_month as month, units_consumed as units, amount, payment_status as status, TO_CHAR(due_date, 'YYYY-MM-DD') as due_date FROM bill ORDER BY due_date DESC, bill_id DESC")
 
+def get_bills(): 
+    check_and_update_overdue_bills() # Check for overdue bills before displaying
+    return execute_query("""
+        SELECT bill_id, COALESCE(consumer_id, 0) as consumer_id, COALESCE(connection_id, 0) as connection_id, 
+        billing_month as month, units_consumed as units, amount, payment_status as status, 
+        TO_CHAR(due_date, 'YYYY-MM-DD') as due_date 
+        FROM bill ORDER BY due_date DESC, bill_id DESC
+    """)
+
+# ==========================================
+# ADD & UPDATE DATA
+# ==========================================
 def add_grid(grid_id, grid_name, location): return execute_modify("INSERT INTO power_grid (grid_id, grid_name, location) VALUES (%s, %s, %s)", (grid_id, grid_name, location))
 def add_area(area_id, grid_id, zone, city, poc): return execute_modify("INSERT INTO distribution_area (area_id, grid_id, zone, city, poc) VALUES (%s, %s, %s, %s, %s)", (area_id, grid_id, zone, city, poc))
 def update_grid(grid_id, name, location): return execute_modify("UPDATE power_grid SET grid_name=%s, location=%s WHERE grid_id=%s", (name, location, grid_id))
@@ -121,6 +155,9 @@ def add_connection(connection_id, consumer_id, area_id, address, conn_type, load
         return False, str(e)
     finally: cur.close(); conn.close()
 
+# ==========================================
+# READINGS & BILLING
+# ==========================================
 def add_meter_reading(connection_id, billing_month, previous_reading, current_reading):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -200,6 +237,7 @@ def pay_bill_transaction(bill_id):
     finally: cur.close(); conn.close()
 
 def get_full_invoice_details(bill_id):
+    check_and_update_overdue_bills() # Update status just in case it's generated right now
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -219,17 +257,18 @@ def get_full_invoice_details(bill_id):
 
 def delete_record(table, id_column, record_id): return execute_modify(f"DELETE FROM {table} WHERE {id_column} = %s", (record_id,))
 
+# ==========================================
+# DASHBOARD & ANALYTICS
+# ==========================================
 def get_admin_dashboard_stats(): 
-    return execute_query("""
-        SELECT 
-            (SELECT COUNT(*) FROM power_grid) as total_grids, 
-            (SELECT COUNT(*) FROM distribution_area) as total_areas, 
-            (SELECT COUNT(*) FROM consumer) as total_consumers, 
-            (SELECT COUNT(*) FROM connection) as total_connections, 
-            (SELECT COALESCE(SUM(units_supplied), 0)::FLOAT FROM area_monthly_supply) as total_units_supplied
-    """, fetchall=False)
-def get_analytics_top_areas(): return execute_query("SELECT d.zone, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_units FROM meter_reading m JOIN connection c ON m.connection_id = c.connection_id JOIN distribution_area d ON c.area_id = d.area_id GROUP BY d.zone ORDER BY total_units DESC LIMIT 5")
-def get_analytics_power_loss(): return execute_query("WITH area_supply AS (SELECT area_id, COALESCE(SUM(units_supplied), 0)::FLOAT as total_supplied FROM area_monthly_supply GROUP BY area_id), area_consumed AS (SELECT c.area_id, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_consumed FROM meter_reading m JOIN connection c ON m.connection_id = c.connection_id GROUP BY c.area_id) SELECT d.zone, d.city, COALESCE(s.total_supplied, 0)::FLOAT as units_supplied, COALESCE(c.total_consumed, 0)::FLOAT as units_consumed, (COALESCE(s.total_supplied, 0) - COALESCE(c.total_consumed, 0))::FLOAT as power_loss FROM distribution_area d LEFT JOIN area_supply s ON d.area_id = s.area_id LEFT JOIN area_consumed c ON d.area_id = c.area_id ORDER BY power_loss DESC")
+    return execute_query("SELECT (SELECT COUNT(*) FROM power_grid) as total_grids, (SELECT COUNT(*) FROM distribution_area) as total_areas, (SELECT COUNT(*) FROM consumer) as total_consumers, (SELECT COUNT(*) FROM connection) as total_connections, (SELECT COALESCE(SUM(units_supplied), 0) FROM area_monthly_supply) as total_units_supplied", fetchall=False)
+
+def get_analytics_top_areas(): 
+    return execute_query("SELECT d.zone, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_units FROM meter_reading m JOIN connection c ON m.connection_id = c.connection_id JOIN distribution_area d ON c.area_id = d.area_id GROUP BY d.zone ORDER BY total_units DESC LIMIT 5")
+
+def get_analytics_power_loss(): 
+    return execute_query("WITH area_supply AS (SELECT area_id, COALESCE(SUM(units_supplied), 0)::FLOAT as total_supplied FROM area_monthly_supply GROUP BY area_id), area_consumed AS (SELECT c.area_id, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_consumed FROM meter_reading m JOIN connection c ON m.connection_id = c.connection_id GROUP BY c.area_id) SELECT d.zone, d.city, COALESCE(s.total_supplied, 0)::FLOAT as units_supplied, COALESCE(c.total_consumed, 0)::FLOAT as units_consumed, (COALESCE(s.total_supplied, 0) - COALESCE(c.total_consumed, 0))::FLOAT as power_loss FROM distribution_area d LEFT JOIN area_supply s ON d.area_id = s.area_id LEFT JOIN area_consumed c ON d.area_id = c.area_id ORDER BY power_loss DESC")
+
 def get_consumer_full_details(consumer_id):
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -240,7 +279,9 @@ def get_consumer_full_details(consumer_id):
         return {"consumer": c, "connections": cur.fetchall()}
     except: return None
     finally: cur.close(); conn.close()
+
 def get_consumer_dashboard(consumer_id):
+    check_and_update_overdue_bills() # Ensure overdue bills are accurate
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -252,9 +293,16 @@ def get_consumer_dashboard(consumer_id):
     except: return {"total_connections": 0, "unpaid_bills": 0, "total_due": 0}
     finally: cur.close(); conn.close()
 
-def get_consumer_connections(consumer_id): return execute_query("SELECT connection_id, address, connection_type, load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, status FROM connection WHERE consumer_id = %s ORDER BY connection_id", (consumer_id,))
-def get_consumer_bills(consumer_id): return execute_query("SELECT bill_id, connection_id, billing_month as month, units_consumed as units, amount, payment_status as status, TO_CHAR(due_date, 'YYYY-MM-DD') as due_date FROM bill WHERE consumer_id = %s ORDER BY bill_id DESC", (consumer_id,))
-def get_consumer_profile(consumer_id): return execute_query("SELECT c.consumer_id, c.full_name, c.permanent_address, c.age, u.username FROM consumer c JOIN consumer_users u ON c.consumer_id = u.consumer_id WHERE c.consumer_id = %s", (consumer_id,), fetchall=False)
+def get_consumer_connections(consumer_id): 
+    return execute_query("SELECT connection_id, address, connection_type, load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, status FROM connection WHERE consumer_id = %s ORDER BY connection_id", (consumer_id,))
+
+def get_consumer_bills(consumer_id): 
+    check_and_update_overdue_bills() # Ensure overdue bills show up instantly on Consumer Portal
+    return execute_query("SELECT bill_id, connection_id, billing_month as month, units_consumed as units, amount, payment_status as status, TO_CHAR(due_date, 'YYYY-MM-DD') as due_date FROM bill WHERE consumer_id = %s ORDER BY bill_id DESC", (consumer_id,))
+
+def get_consumer_profile(consumer_id): 
+    return execute_query("SELECT c.consumer_id, c.full_name, c.permanent_address, c.age, u.username FROM consumer c JOIN consumer_users u ON c.consumer_id = u.consumer_id WHERE c.consumer_id = %s", (consumer_id,), fetchall=False)
+
 def update_consumer_profile(consumer_id, name, address, age, new_password_hash=None):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -268,6 +316,9 @@ def update_consumer_profile(consumer_id, name, address, age, new_password_hash=N
         return False, str(e)
     finally: cur.close(); conn.close()
 
+# ==========================================
+# HELP DESK / TICKETING
+# ==========================================
 def create_ticket(consumer_id, subject, initial_message):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -281,6 +332,7 @@ def create_ticket(consumer_id, subject, initial_message):
         conn.rollback()
         return False, f"Failed to create ticket: {str(e)}"
     finally: cur.close(); conn.close()
+
 def get_consumer_tickets(consumer_id): return execute_query("SELECT ticket_id, subject, status, is_satisfied, TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as created_at FROM support_ticket WHERE consumer_id = %s ORDER BY ticket_id DESC", (consumer_id,))
 def get_all_tickets(): return execute_query("SELECT t.ticket_id, t.subject, t.status, t.is_satisfied, TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI') as created_at, COALESCE(c.consumer_id, 0) as consumer_id, COALESCE(c.full_name, 'Deleted User') as consumer_name FROM support_ticket t LEFT JOIN consumer c ON t.consumer_id = c.consumer_id ORDER BY CASE WHEN t.status = 'Open' THEN 1 WHEN t.status = 'In Progress' THEN 2 ELSE 3 END, t.created_at DESC")
 def update_ticket_status(ticket_id, status, is_satisfied=None):
@@ -295,6 +347,7 @@ def update_ticket_status(ticket_id, status, is_satisfied=None):
         conn.rollback()
         return False, str(e)
     finally: cur.close(); conn.close()
+
 def get_ticket_thread(ticket_id):
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -305,6 +358,7 @@ def get_ticket_thread(ticket_id):
         cur.execute("SELECT sender_role, message, TO_CHAR(sent_at, 'Mon DD, HH24:MI') as timestamp FROM ticket_reply WHERE ticket_id = %s ORDER BY sent_at ASC", (ticket_id,))
         return {"ticket": ticket_meta, "replies": cur.fetchall()}
     finally: cur.close(); conn.close()
+
 def add_ticket_reply(ticket_id, sender_role, message):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -318,3 +372,4 @@ def add_ticket_reply(ticket_id, sender_role, message):
         conn.rollback()
         return False, str(e)
     finally: cur.close(); conn.close()
+
