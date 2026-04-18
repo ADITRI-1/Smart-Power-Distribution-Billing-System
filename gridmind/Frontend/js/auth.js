@@ -10,16 +10,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = document.getElementById('password').value;
             const loginType = document.getElementById('loginType').value; 
             try {
-                const res = await fetch(`${API_BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, loginType }) });
+                const res = await fetch(`${API_BASE}/login`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ username, password, loginType }) 
+                });
+                
                 const data = await res.json();
+                
                 if (res.ok) {
-                    if (data.role === 'admin') window.location.replace('dashboard.html');
+                    if (data.role === 'admin') {
+                        // SAVE ADMIN USERNAME FOR PASSWORD CHANGE FEATURE
+                        localStorage.setItem('adminUsername', data.username);
+                        window.location.replace('dashboard.html');
+                    }
                     else if (data.role === 'consumer') {
                         localStorage.setItem('consumerId', data.consumer_id);
                         window.location.replace('consumer-dashboard.html');
                     }
-                } else alert(data.error);
-            } catch (error) { alert("Server connectivity error."); }
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) { 
+                alert("Server connectivity error."); 
+            }
         });
     }
 

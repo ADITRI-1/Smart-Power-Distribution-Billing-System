@@ -11,7 +11,9 @@ def execute_query(query, params=None, fetchall=True):
     try:
         cur.execute(query, params)
         return cur.fetchall() if fetchall else cur.fetchone()
-    except Exception as e: return []
+    except Exception as e: 
+        print(f"Query Error: {e}")
+        return []
     finally: cur.close(); conn.close()
 
 def execute_modify(query, params=None):
@@ -23,94 +25,118 @@ def execute_modify(query, params=None):
         return True, "Operation successful!"
     except psycopg2.errors.UniqueViolation:
         conn.rollback()
-        return False, "Error: This ID (or a unique value) already exists in the system!"
+        return False, "Error: This ID already exists in the system!"
     except psycopg2.errors.ForeignKeyViolation:
         conn.rollback()
-        return False, "Error: You referenced an ID that does not exist!"
-    except psycopg2.errors.CheckViolation:
-        conn.rollback()
-        return False, "Error: A data constraint was violated."
+        return False, "Error: Data is linked to another record and cannot be deleted/modified directly."
     except Exception as e:
         conn.rollback()
         return False, f"Database Error: {str(e)}"
     finally: cur.close(); conn.close()
 
-def create_consumer_user(full_name, username, hashed_password):
+# ==========================================
+# LOGIN & AUTHENTICATION
+# ==========================================
+def check_and_get_user(username, login_type):
+    """Fetches user data purely for password validation. No lockouts."""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        table = "admin_users" if login_type == "admin" else "consumer_users"
+        id_field = "consumer_id" if login_type == "consumer" else "admin_id"
+        
+        cur.execute(f"SELECT password_hash, {id_field} FROM {table} WHERE username = %s", (username,))
+        row = cur.fetchone()
+        
+        if not row: return None
+        
+        # Convert to standard dict to avoid psycopg2 read-only errors
+        user = dict(row)
+        user['role'] = login_type
+        return user
+    finally: 
+        cur.close()
+        conn.close()
+
+def update_admin_password(username, new_password_hash):
+    return execute_modify("UPDATE admin_users SET password_hash = %s WHERE username = %s", (new_password_hash, username))
+
+def generate_reset_token(email, login_type):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT MAX(consumer_id) FROM consumer")
-        max_id = cur.fetchone()[0]
-        new_id = (max_id + 1) if max_id else 1000
-        cur.execute("INSERT INTO consumer (consumer_id, full_name, permanent_address, age) VALUES (%s, %s, %s, %s)", (new_id, full_name, 'Pending Address', 18))
-        cur.execute("INSERT INTO consumer_users (consumer_id, username, password_hash) VALUES (%s, %s, %s)", (new_id, username, hashed_password))
+        table = "admin_users" if login_type == "admin" else "consumer_users"
+        cur.execute(f"SELECT username FROM {table} WHERE email = %s", (email,))
+        if not cur.fetchone(): return None 
+        
+        otp = ''.join(random.choices(string.digits, k=6))
+        cur.execute(f"UPDATE {table} SET reset_token = %s, token_expiry = NOW() + INTERVAL '15 minutes' WHERE email = %s", (otp, email))
         conn.commit()
-        return True, "Account created"
+        return otp
+    except Exception: return None
+    finally: cur.close(); conn.close()
+
+def reset_password_with_token(email, token, new_password_hash, login_type):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        table = "admin_users" if login_type == "admin" else "consumer_users"
+        cur.execute(f"SELECT reset_token FROM {table} WHERE email = %s AND reset_token = %s AND token_expiry > NOW()", (email, token))
+        if not cur.fetchone(): return False, "Invalid or expired OTP."
+        
+        cur.execute(f"UPDATE {table} SET password_hash = %s, reset_token = NULL, token_expiry = NULL WHERE email = %s", (new_password_hash, email))
+        conn.commit()
+        return True, "Password reset successfully."
     except Exception as e:
         conn.rollback()
         return False, str(e)
     finally: cur.close(); conn.close()
 
-def get_user_login_data(username, login_type):
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        if login_type == 'admin':
-            cur.execute("SELECT password_hash FROM admin_users WHERE username = %s", (username,))
-            res = cur.fetchone()
-            if res: res['role'] = 'admin'; return res
-        elif login_type == 'consumer':
-            cur.execute("SELECT password_hash, consumer_id FROM consumer_users WHERE username = %s", (username,))
-            res = cur.fetchone()
-            if res: res['role'] = 'consumer'; return res
-        return None
-    finally: cur.close(); conn.close()
-
+# ==========================================
+# FETCH DATA
+# ==========================================
 def get_grids(): return execute_query("SELECT grid_id, grid_name, location FROM power_grid ORDER BY grid_id")
 def get_areas(): return execute_query("SELECT area_id, zone, city, grid_id, poc FROM distribution_area ORDER BY area_id")
 def get_consumers(): return execute_query("SELECT consumer_id, full_name, permanent_address as address, age FROM consumer ORDER BY consumer_id")
 def get_connections(): 
-    # Ensure no caching: fetch fresh status every time [cite: 8]
     return execute_query("""
         SELECT connection_id, consumer_id, area_id, connection_type, 
-               load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, 
-               status 
-        FROM connection 
-        ORDER BY connection_id
+               load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, status 
+        FROM connection ORDER BY connection_id
     """)
 def get_readings(): return execute_query("SELECT reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed FROM meter_reading ORDER BY reading_id DESC")
-def get_bills(): return execute_query("SELECT bill_id, consumer_id, connection_id, billing_month as month, units_consumed as units, amount, payment_status as status, TO_CHAR(due_date, 'YYYY-MM-DD') as due_date FROM bill ORDER BY due_date DESC, bill_id DESC")
 
+def get_bills(): 
+    # Notice we COALESCE the IDs to handle Deleted (NULL) consumers cleanly
+    return execute_query("""
+        SELECT bill_id, COALESCE(consumer_id, 0) as consumer_id, COALESCE(connection_id, 0) as connection_id, 
+        billing_month as month, units_consumed as units, amount, payment_status as status, 
+        TO_CHAR(due_date, 'YYYY-MM-DD') as due_date 
+        FROM bill ORDER BY due_date DESC, bill_id DESC
+    """)
+
+# ==========================================
+# ADD & UPDATE DATA
+# ==========================================
 def add_grid(grid_id, grid_name, location): return execute_modify("INSERT INTO power_grid (grid_id, grid_name, location) VALUES (%s, %s, %s)", (grid_id, grid_name, location))
 def add_area(area_id, grid_id, zone, city, poc): return execute_modify("INSERT INTO distribution_area (area_id, grid_id, zone, city, poc) VALUES (%s, %s, %s, %s, %s)", (area_id, grid_id, zone, city, poc))
-def add_consumer(consumer_id, name, address, age, username, password_hash, email): # <-- Added email here
+def update_grid(grid_id, name, location): return execute_modify("UPDATE power_grid SET grid_name=%s, location=%s WHERE grid_id=%s", (name, location, grid_id))
+def update_area(area_id, zone, city, grid_id, poc): return execute_modify("UPDATE distribution_area SET zone=%s, city=%s, grid_id=%s, poc=%s WHERE area_id=%s", (zone, city, grid_id, poc, area_id))
+def update_consumer(consumer_id, name, address, age): return execute_modify("UPDATE consumer SET full_name=%s, permanent_address=%s, age=%s WHERE consumer_id=%s", (name, address, age, consumer_id))
+def update_connection(connection_id, consumer_id, area_id, type, load, status): return execute_modify("UPDATE connection SET consumer_id=%s, area_id=%s, connection_type=%s, load_assign=%s, status=%s WHERE connection_id=%s", (consumer_id, area_id, type, load, status, connection_id))
+
+def add_consumer(consumer_id, name, address, age, username, password_hash, email):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("""
-            INSERT INTO consumer (consumer_id, full_name, permanent_address, age) 
-            VALUES (%s, %s, %s, %s)
-        """, (consumer_id, name, address, age))
-        
-        # Insert the email into the auth table
-        cur.execute("""
-            INSERT INTO consumer_users (consumer_id, username, password_hash, email) 
-            VALUES (%s, %s, %s, %s)
-        """, (consumer_id, username, password_hash, email)) # <-- Added email here
-        
+        cur.execute("INSERT INTO consumer (consumer_id, full_name, permanent_address, age) VALUES (%s, %s, %s, %s)", (consumer_id, name, address, age))
+        cur.execute("INSERT INTO consumer_users (consumer_id, username, password_hash, email) VALUES (%s, %s, %s, %s)", (consumer_id, username, password_hash, email))
         conn.commit()
         return True, "Consumer and Login Profile created successfully!"
     except Exception as e:
         conn.rollback() 
         return False, str(e)
-    finally:
-        cur.close()
-        conn.close()
-        
-def update_grid(grid_id, name, location): return execute_modify("UPDATE power_grid SET grid_name=%s, location=%s WHERE grid_id=%s", (name, location, grid_id))
-def update_area(area_id, zone, city, grid_id, poc): return execute_modify("UPDATE distribution_area SET zone=%s, city=%s, grid_id=%s, poc=%s WHERE area_id=%s", (zone, city, grid_id, poc, area_id))
-def update_consumer(consumer_id, name, address, age): return execute_modify("UPDATE consumer SET full_name=%s, permanent_address=%s, age=%s WHERE consumer_id=%s", (name, address, age, consumer_id))
-def update_connection(connection_id, consumer_id, area_id, type, load, status): return execute_modify("UPDATE connection SET consumer_id=%s, area_id=%s, connection_type=%s, load_assign=%s, status=%s WHERE connection_id=%s", (consumer_id, area_id, type, load, status, connection_id))
+    finally: cur.close(); conn.close()
 
 def add_connection(connection_id, consumer_id, area_id, address, conn_type, load, install_date, status): 
     conn = get_db_connection()
@@ -126,22 +152,22 @@ def add_connection(connection_id, consumer_id, area_id, address, conn_type, load
         return False, str(e)
     finally: cur.close(); conn.close()
 
+# ==========================================
+# READINGS & BILLING
+# ==========================================
 def add_meter_reading(connection_id, billing_month, previous_reading, current_reading):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # 1. Prevent Future Months
         current_month = datetime.now().strftime('%Y-%m')
         if billing_month > current_month:
-            raise ValueError(f"Cannot log readings for future months. (Current max: {current_month})")
+            raise ValueError(f"Cannot log readings for future months.")
 
         cur.execute("SELECT status FROM connection WHERE connection_id = %s", (connection_id,))
         c = cur.fetchone()
         if not c or c[0] != 'Active': raise ValueError("Connection inactive/invalid.")
         
-        # 2. Silently wipe out the Base placeholder reading
         cur.execute("DELETE FROM meter_reading WHERE connection_id = %s AND billing_month LIKE '%%-Base'", (connection_id,))
-        
         cur.execute("INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES (nextval('reading_id_seq'), %s, %s, %s, %s, 0)", (connection_id, billing_month, previous_reading, current_reading))
         conn.commit()
         return {'success': True, 'message': 'Reading logged! Bill auto-generated.'}
@@ -154,15 +180,12 @@ def delete_meter_reading(reading_id):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # Find the connection and month so we can delete the attached bill
         cur.execute("SELECT connection_id, billing_month FROM meter_reading WHERE reading_id = %s", (reading_id,))
         row = cur.fetchone()
         if not row: return False, "Reading not found"
         
-        # Delete the Bill FIRST, then delete the Reading
         cur.execute("DELETE FROM bill WHERE connection_id = %s AND billing_month = %s", (row[0], row[1]))
         cur.execute("DELETE FROM meter_reading WHERE reading_id = %s", (reading_id,))
-        
         conn.commit()
         return True, "Reading and associated bill successfully deleted."
     except Exception as e:
@@ -174,40 +197,34 @@ def update_meter_reading(reading_id, prev_reading, curr_reading):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # To trigger the automatic bill generation again, we safely delete and re-insert the reading!
         cur.execute("SELECT connection_id, billing_month FROM meter_reading WHERE reading_id = %s", (reading_id,))
         r = cur.fetchone()
         if not r: raise ValueError("Reading not found")
         
-        # Delete old bill & old reading
         cur.execute("DELETE FROM bill WHERE connection_id = %s AND billing_month = %s", (r[0], r[1]))
         cur.execute("DELETE FROM meter_reading WHERE reading_id = %s", (reading_id,))
-        
-        # Re-insert reading with same ID (This forces the DB Trigger to generate a brand new bill!)
         cur.execute("INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES (%s, %s, %s, %s, %s, 0)", (reading_id, r[0], r[1], prev_reading, curr_reading))
-        
         conn.commit()
         return True, "Reading updated and new bill generated!"
     except Exception as e:
         conn.rollback()
         return False, str(e)
     finally: cur.close(); conn.close()
+
+def update_bill_status_admin(bill_id, status, method=None):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT status FROM connection WHERE connection_id = %s", (connection_id,))
-        c = cur.fetchone()
-        if not c or c[0] != 'Active': raise ValueError("Connection inactive/invalid.")
-        cur.execute("INSERT INTO meter_reading (reading_id, connection_id, billing_month, previous_reading, current_reading, units_consumed) VALUES (nextval('reading_id_seq'), %s, %s, %s, %s, 0)", (connection_id, billing_month, previous_reading, current_reading))
+        if status == 'Paid':
+            cur.execute("UPDATE bill SET payment_status = 'Paid', paid_on = NOW(), payment_method = %s WHERE bill_id = %s", (method, bill_id))
+        else:
+            cur.execute("UPDATE bill SET payment_status = 'Unpaid', paid_on = NULL, payment_method = NULL WHERE bill_id = %s", (bill_id,))
         conn.commit()
-        return {'success': True, 'message': 'Reading logged! Bill auto-generated.'}
+        return True, f"Bill #{bill_id} status updated to {status}."
     except Exception as e:
         conn.rollback()
-        return {'success': False, 'message': str(e)}
+        return False, str(e)
     finally: cur.close(); conn.close()
-
-def delete_record(table, id_column, record_id): 
-    return execute_modify(f"DELETE FROM {table} WHERE {id_column} = %s", (record_id,))
 
 def pay_bill_transaction(bill_id):
     conn = get_db_connection()
@@ -224,8 +241,72 @@ def pay_bill_transaction(bill_id):
         return {'success': False, 'message': str(e)}
     finally: cur.close(); conn.close()
 
+def get_full_invoice_details(bill_id):
+    """Uses LEFT JOINs so invoices still load even if the consumer was deleted."""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT 
+                b.bill_id, b.billing_month, b.units_consumed, b.amount, b.payment_status, 
+                TO_CHAR(b.generated_on, 'YYYY-MM-DD') as generated_on, 
+                TO_CHAR(b.due_date, 'YYYY-MM-DD') as due_date, 
+                TO_CHAR(b.paid_on, 'YYYY-MM-DD HH24:MI:SS') as paid_on,
+                b.payment_method,
+                COALESCE(c.consumer_id, 0) as consumer_id, COALESCE(c.full_name, 'Deleted Consumer') as consumer_name, COALESCE(c.permanent_address, 'N/A') as permanent_address,
+                COALESCE(conn.connection_id, 0) as connection_id, COALESCE(conn.address, 'Deleted Location') as connection_address, COALESCE(conn.connection_type, 'N/A') as connection_type, COALESCE(conn.load_assign, 'N/A') as load_assign,
+                COALESCE(da.zone, 'N/A') as zone, COALESCE(da.city, 'N/A') as city,
+                COALESCE(pg.grid_name, 'N/A') as grid_name,
+                ts.rate_per_unit, ts.fixed_charge,
+                mr.previous_reading, mr.current_reading
+            FROM bill b
+            LEFT JOIN consumer c ON b.consumer_id = c.consumer_id
+            LEFT JOIN connection conn ON b.connection_id = conn.connection_id
+            LEFT JOIN distribution_area da ON conn.area_id = da.area_id
+            LEFT JOIN power_grid pg ON da.grid_id = pg.grid_id
+            JOIN tariff_slab ts ON b.slab_id = ts.slab_id
+            LEFT JOIN meter_reading mr ON b.connection_id = mr.connection_id AND b.billing_month = mr.billing_month
+            WHERE b.bill_id = %s
+        """, (bill_id,))
+        return cur.fetchone()
+    finally: cur.close(); conn.close()
+
+# ==========================================
+# DELETE RECORDS
+# ==========================================
+def delete_record(table, id_column, record_id): 
+    return execute_modify(f"DELETE FROM {table} WHERE {id_column} = %s", (record_id,))
+
+# ==========================================
+# DASHBOARD & ANALYTICS
+# ==========================================
 def get_admin_dashboard_stats():
     return execute_query("SELECT (SELECT COUNT(*) FROM power_grid) as total_grids, (SELECT COUNT(*) FROM distribution_area) as total_areas, (SELECT COUNT(*) FROM consumer) as total_consumers, (SELECT COUNT(*) FROM connection) as total_connections, (SELECT COALESCE(SUM(units_supplied), 0) FROM area_monthly_supply) as total_units_supplied", fetchall=False)
+
+def get_analytics_top_areas():
+    return execute_query("""
+        SELECT d.zone, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_units 
+        FROM meter_reading m 
+        JOIN connection c ON m.connection_id = c.connection_id 
+        JOIN distribution_area d ON c.area_id = d.area_id 
+        GROUP BY d.zone ORDER BY total_units DESC LIMIT 5
+    """)
+
+def get_analytics_power_loss():
+    return execute_query("""
+        WITH area_supply AS (
+            SELECT area_id, COALESCE(SUM(units_supplied), 0)::FLOAT as total_supplied
+            FROM area_monthly_supply GROUP BY area_id
+        ),
+        area_consumed AS (
+            SELECT c.area_id, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_consumed
+            FROM meter_reading m JOIN connection c ON m.connection_id = c.connection_id
+            GROUP BY c.area_id
+        )
+        SELECT d.zone, d.city, COALESCE(s.total_supplied, 0)::FLOAT as units_supplied, COALESCE(c.total_consumed, 0)::FLOAT as units_consumed, 
+               (COALESCE(s.total_supplied, 0) - COALESCE(c.total_consumed, 0))::FLOAT as power_loss 
+        FROM distribution_area d LEFT JOIN area_supply s ON d.area_id = s.area_id LEFT JOIN area_consumed c ON d.area_id = c.area_id ORDER BY power_loss DESC
+    """)
 
 def get_consumer_full_details(consumer_id):
     conn = get_db_connection()
@@ -238,38 +319,6 @@ def get_consumer_full_details(consumer_id):
     except: return None
     finally: cur.close(); conn.close()
 
-def get_analytics_top_areas():
-    return execute_query("""
-        SELECT d.zone, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_units 
-        FROM meter_reading m 
-        JOIN connection c ON m.connection_id = c.connection_id 
-        JOIN distribution_area d ON c.area_id = d.area_id 
-        GROUP BY d.zone 
-        ORDER BY total_units DESC LIMIT 5
-    """)
-
-def get_analytics_power_loss():
-    return execute_query("""
-        WITH area_supply AS (
-            SELECT area_id, COALESCE(SUM(units_supplied), 0)::FLOAT as total_supplied
-            FROM area_monthly_supply
-            GROUP BY area_id
-        ),
-        area_consumed AS (
-            SELECT c.area_id, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_consumed
-            FROM meter_reading m
-            JOIN connection c ON m.connection_id = c.connection_id
-            GROUP BY c.area_id
-        )
-        SELECT d.zone, d.city, 
-               COALESCE(s.total_supplied, 0)::FLOAT as units_supplied, 
-               COALESCE(c.total_consumed, 0)::FLOAT as units_consumed, 
-               (COALESCE(s.total_supplied, 0) - COALESCE(c.total_consumed, 0))::FLOAT as power_loss 
-        FROM distribution_area d 
-        LEFT JOIN area_supply s ON d.area_id = s.area_id 
-        LEFT JOIN area_consumed c ON d.area_id = c.area_id 
-        ORDER BY power_loss DESC
-    """)
 def get_consumer_dashboard(consumer_id):
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -285,26 +334,15 @@ def get_consumer_dashboard(consumer_id):
 def get_consumer_connections(consumer_id): return execute_query("SELECT connection_id, address, connection_type, load_assign as load, TO_CHAR(installation_date, 'YYYY-MM-DD') as install_date, status FROM connection WHERE consumer_id = %s ORDER BY connection_id", (consumer_id,))
 def get_consumer_bills(consumer_id): return execute_query("SELECT bill_id, connection_id, billing_month as month, units_consumed as units, amount, payment_status as status, TO_CHAR(due_date, 'YYYY-MM-DD') as due_date FROM bill WHERE consumer_id = %s ORDER BY bill_id DESC", (consumer_id,))
 
-
 def get_consumer_profile(consumer_id):
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT c.consumer_id, c.full_name, c.permanent_address, c.age, u.username
-            FROM consumer c JOIN consumer_users u ON c.consumer_id = u.consumer_id
-            WHERE c.consumer_id = %s
-        """, (consumer_id,))
-        return cur.fetchone()
-    finally: cur.close(); conn.close()
+    return execute_query("SELECT c.consumer_id, c.full_name, c.permanent_address, c.age, u.username FROM consumer c JOIN consumer_users u ON c.consumer_id = u.consumer_id WHERE c.consumer_id = %s", (consumer_id,), fetchall=False)
 
 def update_consumer_profile(consumer_id, name, address, age, new_password_hash=None):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         cur.execute("UPDATE consumer SET full_name=%s, permanent_address=%s, age=%s WHERE consumer_id=%s", (name, address, age, consumer_id))
-        if new_password_hash:
-            cur.execute("UPDATE consumer_users SET password_hash=%s WHERE consumer_id=%s", (new_password_hash, consumer_id))
+        if new_password_hash: cur.execute("UPDATE consumer_users SET password_hash=%s WHERE consumer_id=%s", (new_password_hash, consumer_id))
         conn.commit()
         return True, "Profile updated successfully!"
     except Exception as e:
@@ -312,322 +350,59 @@ def update_consumer_profile(consumer_id, name, address, age, new_password_hash=N
         return False, str(e)
     finally: cur.close(); conn.close()
 
-def log_login_attempt(username, login_type, status):
-    """Records every login attempt in the database."""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            "INSERT INTO login_logs (username, login_type, status) VALUES (%s, %s, %s)",
-            (username, login_type, status)
-        )
-        conn.commit()
-    except Exception as e: pass
-    finally: cur.close(); conn.close()
-
-def check_and_get_user(username, login_type):
-    """Fetches user data and checks if they are currently locked out."""
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        table = "admin_users" if login_type == "admin" else "consumer_users"
-        
-        cur.execute(f"SELECT password_hash, failed_attempts, locked_until, {'consumer_id' if login_type == 'consumer' else 'admin_id'} FROM {table} WHERE username = %s", (username,))
-        user = cur.fetchone()
-        
-        if not user: return None
-        
-        # --- NEW DYNAMIC TIME CALCULATION ---
-        if user['locked_until']:
-            # Ask Postgres to calculate the exact difference in seconds
-            cur.execute("SELECT EXTRACT(EPOCH FROM (%s - NOW())) AS seconds_left", (user['locked_until'],))
-            seconds_left = cur.fetchone()['seconds_left']
-            
-            if seconds_left and seconds_left > 0:
-                minutes = int(seconds_left // 60)
-                seconds = int(seconds_left % 60)
-                # Pass the exact formatted time back to app.py
-                return {"is_locked": True, "time_left": f"{minutes}m {seconds}s"}
-            else:
-                # Time expired, unlock them
-                cur.execute(f"UPDATE {table} SET failed_attempts = 0, locked_until = NULL WHERE username = %s", (username,))
-                conn.commit()
-                user['failed_attempts'] = 0
-
-        user['is_locked'] = False
-        user['role'] = login_type
-        return user
-    finally: cur.close(); conn.close()
-
-def handle_failed_login(username, login_type):
-    """Increments failed attempts. Locks for 30 mins if hits 5."""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        table = "admin_users" if login_type == "admin" else "consumer_users"
-        
-        # Increment failed attempts
-        cur.execute(f"UPDATE {table} SET failed_attempts = failed_attempts + 1 WHERE username = %s RETURNING failed_attempts", (username,))
-        attempts = cur.fetchone()
-        
-        if attempts and attempts[0] >= 5:
-            # Lock the account for 30 minutes
-            cur.execute(f"UPDATE {table} SET locked_until = NOW() + INTERVAL '30 minutes' WHERE username = %s", (username,))
-            conn.commit()
-            return True # Indicates they just got locked
-        
-        conn.commit()
-        return False # Not locked yet
-    finally: cur.close(); conn.close()
-
-def handle_successful_login(username, login_type):
-    """Resets attempts on success."""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        table = "admin_users" if login_type == "admin" else "consumer_users"
-        cur.execute(f"UPDATE {table} SET failed_attempts = 0, locked_until = NULL WHERE username = %s", (username,))
-        conn.commit()
-    finally: cur.close(); conn.close()
-
-def generate_reset_token(email, login_type):
-    """Generates a 6-digit OTP, saves it to the DB with a 15 min expiry."""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        table = "admin_users" if login_type == "admin" else "consumer_users"
-        
-        # Check if email exists
-        cur.execute(f"SELECT username FROM {table} WHERE email = %s", (email,))
-        if not cur.fetchone():
-            return None # Email not found
-        
-        # Generate 6-digit OTP
-        otp = ''.join(random.choices(string.digits, k=6))
-        
-        # Update DB with token and expiry
-        cur.execute(f"UPDATE {table} SET reset_token = %s, token_expiry = NOW() + INTERVAL '15 minutes' WHERE email = %s", (otp, email))
-        conn.commit()
-        return otp
-    except Exception as e:
-        conn.rollback()
-        return None
-    finally: cur.close(); conn.close()
-
-def reset_password_with_token(email, token, new_password_hash, login_type):
-    """Verifies the OTP and updates the password if valid."""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        table = "admin_users" if login_type == "admin" else "consumer_users"
-        
-        # Check token and expiry
-        cur.execute(f"SELECT reset_token FROM {table} WHERE email = %s AND reset_token = %s AND token_expiry > NOW()", (email, token))
-        if not cur.fetchone():
-            return False, "Invalid or expired OTP."
-        
-        # Reset password and clear token safely
-        cur.execute(f"UPDATE {table} SET password_hash = %s, reset_token = NULL, token_expiry = NULL, failed_attempts = 0, locked_until = NULL WHERE email = %s", (new_password_hash, email))
-        conn.commit()
-        return True, "Password reset successfully."
-    except Exception as e:
-        conn.rollback()
-        return False, str(e)
-    finally: cur.close(); conn.close()
-
-def update_bill_status_admin(bill_id, status, method=None):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        if status == 'Paid':
-            # Mark as paid, set the date, and save the payment method (Cash, UPI, etc.)
-            cur.execute("""
-                UPDATE bill 
-                SET payment_status = 'Paid', paid_on = NOW(), payment_method = %s 
-                WHERE bill_id = %s
-            """, (method, bill_id))
-        else:
-            # Revert to unpaid. Clear the paid_on date and the payment method!
-            cur.execute("""
-                UPDATE bill 
-                SET payment_status = 'Unpaid', paid_on = NULL, payment_method = NULL 
-                WHERE bill_id = %s
-            """, (bill_id,))
-            
-        conn.commit()
-        return True, f"Bill #{bill_id} status updated to {status}."
-    except Exception as e:
-        conn.rollback()
-        return False, str(e)
-    finally:
-        cur.close()
-        conn.close()
-
-def get_full_invoice_details(bill_id):
-    """Fetches a massive, joined payload of every single detail related to a bill."""
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT 
-                b.bill_id, b.billing_month, b.units_consumed, b.amount, b.payment_status, 
-                TO_CHAR(b.generated_on, 'YYYY-MM-DD') as generated_on, 
-                TO_CHAR(b.due_date, 'YYYY-MM-DD') as due_date, 
-                TO_CHAR(b.paid_on, 'YYYY-MM-DD HH24:MI:SS') as paid_on,
-                b.payment_method,
-                c.consumer_id, c.full_name as consumer_name, c.permanent_address,
-                conn.connection_id, conn.address as connection_address, conn.connection_type, conn.load_assign,
-                da.zone, da.city,
-                pg.grid_name,
-                ts.rate_per_unit, ts.fixed_charge,
-                mr.previous_reading, mr.current_reading
-            FROM bill b
-            JOIN consumer c ON b.consumer_id = c.consumer_id
-            JOIN connection conn ON b.connection_id = conn.connection_id
-            JOIN distribution_area da ON conn.area_id = da.area_id
-            JOIN power_grid pg ON da.grid_id = pg.grid_id
-            JOIN tariff_slab ts ON b.slab_id = ts.slab_id
-            LEFT JOIN meter_reading mr ON b.connection_id = mr.connection_id AND b.billing_month = mr.billing_month
-            WHERE b.bill_id = %s
-        """, (bill_id,))
-        return cur.fetchone()
-    finally:
-        cur.close()
-        conn.close()
-
-# ========================================================
-# HELP DESK & TICKETING SYSTEM FUNCTIONS
-# ========================================================
-
+# ==========================================
+# HELP DESK & TICKETING SYSTEM
+# ==========================================
 def create_ticket(consumer_id, subject, initial_message):
-    """Creates a new ticket and logs the first message from the consumer."""
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # 1. Insert the main ticket and get the generated ticket_id
-        cur.execute("""
-            INSERT INTO support_ticket (consumer_id, subject) 
-            VALUES (%s, %s) RETURNING ticket_id
-        """, (consumer_id, subject))
+        cur.execute("INSERT INTO support_ticket (consumer_id, subject) VALUES (%s, %s) RETURNING ticket_id", (consumer_id, subject))
         ticket_id = cur.fetchone()[0]
-        
-        # 2. Insert the initial message into the thread
-        cur.execute("""
-            INSERT INTO ticket_reply (ticket_id, sender_role, message) 
-            VALUES (%s, 'consumer', %s)
-        """, (ticket_id, initial_message))
-        
+        cur.execute("INSERT INTO ticket_reply (ticket_id, sender_role, message) VALUES (%s, 'consumer', %s)", (ticket_id, initial_message))
         conn.commit()
         return True, "Ticket submitted successfully!"
     except Exception as e:
         conn.rollback()
         return False, f"Failed to create ticket: {str(e)}"
-    finally:
-        cur.close()
-        conn.close()
+    finally: cur.close(); conn.close()
 
-def get_consumer_tickets(consumer_id):
-    """Fetches all tickets for a specific consumer."""
-    return execute_query("""
-        SELECT ticket_id, subject, status, is_satisfied, 
-               TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as created_at 
-        FROM support_ticket 
-        WHERE consumer_id = %s 
-        ORDER BY ticket_id DESC
-    """, (consumer_id,))
-
-def get_all_tickets():
-    """Fetches all tickets for the Admin dashboard, including the consumer's name."""
-    return execute_query("""
-        SELECT t.ticket_id, t.subject, t.status, t.is_satisfied,
-               TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI') as created_at,
-               c.consumer_id, c.full_name as consumer_name
-        FROM support_ticket t
-        JOIN consumer c ON t.consumer_id = c.consumer_id
-        ORDER BY 
-            CASE WHEN t.status = 'Open' THEN 1 
-                 WHEN t.status = 'In Progress' THEN 2 
-                 ELSE 3 END,
-            t.created_at DESC
-    """)
-
+def get_consumer_tickets(consumer_id): return execute_query("SELECT ticket_id, subject, status, is_satisfied, TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as created_at FROM support_ticket WHERE consumer_id = %s ORDER BY ticket_id DESC", (consumer_id,))
+def get_all_tickets(): return execute_query("SELECT t.ticket_id, t.subject, t.status, t.is_satisfied, TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI') as created_at, COALESCE(c.consumer_id, 0) as consumer_id, COALESCE(c.full_name, 'Deleted User') as consumer_name FROM support_ticket t LEFT JOIN consumer c ON t.consumer_id = c.consumer_id ORDER BY CASE WHEN t.status = 'Open' THEN 1 WHEN t.status = 'In Progress' THEN 2 ELSE 3 END, t.created_at DESC")
 def update_ticket_status(ticket_id, status, is_satisfied=None):
-    """Updates the ticket status. Can also be used to log consumer satisfaction."""
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        if is_satisfied is not None:
-            cur.execute("UPDATE support_ticket SET status = %s, is_satisfied = %s WHERE ticket_id = %s", (status, is_satisfied, ticket_id))
-        else:
-            cur.execute("UPDATE support_ticket SET status = %s WHERE ticket_id = %s", (status, ticket_id))
+        if is_satisfied is not None: cur.execute("UPDATE support_ticket SET status = %s, is_satisfied = %s WHERE ticket_id = %s", (status, is_satisfied, ticket_id))
+        else: cur.execute("UPDATE support_ticket SET status = %s WHERE ticket_id = %s", (status, ticket_id))
         conn.commit()
         return True, "Ticket updated."
     except Exception as e:
         conn.rollback()
         return False, str(e)
-    finally:
-        cur.close()
-        conn.close()
+    finally: cur.close(); conn.close()
 
 def get_ticket_thread(ticket_id):
-    """Fetches the ticket details along with the entire message thread."""
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Fetch ticket meta
-        cur.execute("""
-            SELECT t.ticket_id, t.subject, t.status, c.full_name as consumer_name
-            FROM support_ticket t
-            JOIN consumer c ON t.consumer_id = c.consumer_id
-            WHERE t.ticket_id = %s
-        """, (ticket_id,))
+        cur.execute("SELECT t.ticket_id, t.subject, t.status, COALESCE(c.full_name, 'Deleted User') as consumer_name FROM support_ticket t LEFT JOIN consumer c ON t.consumer_id = c.consumer_id WHERE t.ticket_id = %s", (ticket_id,))
         ticket_meta = cur.fetchone()
-
-        if not ticket_meta:
-            return None
-
-        # Fetch messages chronologically
-        cur.execute("""
-            SELECT sender_role, message, TO_CHAR(sent_at, 'Mon DD, HH24:MI') as timestamp
-            FROM ticket_reply 
-            WHERE ticket_id = %s 
-            ORDER BY sent_at ASC
-        """, (ticket_id,))
-        
-        return {
-            "ticket": ticket_meta,
-            "replies": cur.fetchall()
-        }
-    finally:
-        cur.close()
-        conn.close()
+        if not ticket_meta: return None
+        cur.execute("SELECT sender_role, message, TO_CHAR(sent_at, 'Mon DD, HH24:MI') as timestamp FROM ticket_reply WHERE ticket_id = %s ORDER BY sent_at ASC", (ticket_id,))
+        return {"ticket": ticket_meta, "replies": cur.fetchall()}
+    finally: cur.close(); conn.close()
 
 def add_ticket_reply(ticket_id, sender_role, message):
-    """Adds a new message to an existing ticket and updates status if needed."""
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # 1. Insert the message
-        cur.execute("""
-            INSERT INTO ticket_reply (ticket_id, sender_role, message) 
-            VALUES (%s, %s, %s)
-        """, (ticket_id, sender_role, message))
-
-        # 2. Smart Status Updates (Handling "Counter-Questions")
-        if sender_role == 'admin':
-            # If admin replies, assume they are working on it
-            cur.execute("UPDATE support_ticket SET status = 'In Progress' WHERE ticket_id = %s AND status = 'Open'", (ticket_id,))
-            print(f"📩 SIMULATED NOTIFICATION: User notified of Admin reply on Ticket #{ticket_id}")
-        elif sender_role == 'consumer':
-            # If user replies to a resolved/in-progress ticket, reopen it
-            cur.execute("UPDATE support_ticket SET status = 'Open' WHERE ticket_id = %s AND status != 'Open'", (ticket_id,))
-            print(f"📩 SIMULATED NOTIFICATION: Admin notified of User follow-up on Ticket #{ticket_id}")
-
+        cur.execute("INSERT INTO ticket_reply (ticket_id, sender_role, message) VALUES (%s, %s, %s)", (ticket_id, sender_role, message))
+        if sender_role == 'admin': cur.execute("UPDATE support_ticket SET status = 'In Progress' WHERE ticket_id = %s AND status = 'Open'", (ticket_id,))
+        elif sender_role == 'consumer': cur.execute("UPDATE support_ticket SET status = 'Open' WHERE ticket_id = %s AND status != 'Open'", (ticket_id,))
         conn.commit()
         return True, "Reply sent successfully."
     except Exception as e:
         conn.rollback()
         return False, str(e)
-    finally:
-        cur.close()
-        conn.close()
+    finally: cur.close(); conn.close()
