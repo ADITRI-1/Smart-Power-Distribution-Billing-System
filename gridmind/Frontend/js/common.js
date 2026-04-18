@@ -1,7 +1,117 @@
 const API_BASE = 'http://localhost:5000/api';
 
+// --- PASSWORD VALIDATOR HELPER ---
+window.isValidPassword = function(password) {
+    const regex = /^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+    return regex.test(password);
+};
+
+// ==========================================
+// 1. DYNAMIC PAGE ROUTER & TABLE RENDERER
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    const path = window.location.pathname.toLowerCase();
+    const tbody = document.querySelector('.data-table tbody');
+
+    // Make the delete button generator globally accessible
+    window.getDeleteBtn = function(table, id) {
+        return `<button class="btn-action btn-delete" onclick="deleteRecord('${table}', ${id})">Delete</button>`;
+    };
+
+    // ADMIN: CONSUMERS (Adding the password check here)
+    if (path.includes('consumers.html') && tbody) {
+        const addBtn = document.querySelector('.btn-add');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                const modalHtml = `
+                    <div id="addConsModal" class="modal-overlay" style="display:flex;">
+                        <div class="modal-content" style="max-width: 450px;">
+                            <div class="modal-header">
+                                <h2>Add New Consumer</h2>
+                                <span class="close-btn" onclick="closeModal('addConsModal')">✕</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group"><label>Consumer ID</label><input type="number" id="m_cons_id"></div>
+                                <div class="form-group"><label>Age</label><input type="number" id="m_age"></div>
+                            </div>
+                            <div class="form-group"><label>Full Name</label><input type="text" id="m_name"></div>
+                            <div class="form-group"><label>Email Address</label><input type="email" id="consumerEmail" placeholder="e.g. user@example.com"></div>
+                            <div class="form-group"><label>Permanent Address</label><input type="text" id="m_addr"></div>
+                            
+                            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
+                            
+                            <h3 style="margin-bottom: 10px; color: #4B5563; font-size: 14px;">Portal Login Credentials</h3>
+                            <div class="form-group"><label>Username</label><input type="text" id="m_username" placeholder="e.g. jdoe_123"></div>
+                            <div class="form-group"><label>Password (Min 8 char, 1 Upper, 1 Number, 1 Symbol)</label><input type="password" id="m_password"></div>
+                            
+                            <button class="btn-primary" id="submitConsBtn" style="width: 100%; margin-top: 1rem;">Create Consumer</button>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                document.getElementById('submitConsBtn').addEventListener('click', async () => {
+                    const id = document.getElementById('m_cons_id').value;
+                    const name = document.getElementById('m_name').value;
+                    const email = document.getElementById('consumerEmail').value;
+                    const address = document.getElementById('m_addr').value;
+                    const age = document.getElementById('m_age').value;
+                    const username = document.getElementById('m_username').value;
+                    const password = document.getElementById('m_password').value;
+
+                    if(!id || !name || !address || !age || !username || !password) return alert("Fill all fields!");
+
+                    // FRONTEND PASSWORD CHECK
+                    if (!window.isValidPassword(password)) {
+                        return alert("Password must contain at least 8 characters, 1 uppercase letter, 1 number, and 1 symbol.");
+                    }
+
+                    try {
+                        const res = await fetch(`${API_BASE}/consumers`, { 
+                            method: 'POST', 
+                            headers: {'Content-Type': 'application/json'}, 
+                            body: JSON.stringify({id, name, email, address, age, username, password})
+                        });
+                        const data = await res.json();
+                        if(res.ok) window.location.reload(); else alert(data.error);
+                    } catch(e) { alert("Server Error."); }
+                });
+            });
+        }
+    }
+});
+
+// =========================================================
+// 2. AUTOMATIC UI UPGRADER (Converts hardcoded Emojis)
+// =========================================================
+function upgradeUIButtons() {
+    document.querySelectorAll('span.action-edit').forEach(el => {
+        const btn = document.createElement('button'); btn.className = 'btn-action btn-edit'; btn.innerText = 'Edit';
+        if (el.hasAttribute('onclick')) btn.setAttribute('onclick', el.getAttribute('onclick'));
+        el.replaceWith(btn);
+    });
+    document.querySelectorAll('span.action-view').forEach(el => {
+        const btn = document.createElement('button'); btn.className = 'btn-action btn-view'; btn.innerText = 'Details';
+        if (el.hasAttribute('onclick')) btn.setAttribute('onclick', el.getAttribute('onclick'));
+        el.replaceWith(btn);
+    });
+    document.querySelectorAll('span.action-delete').forEach(el => {
+        const btn = document.createElement('button'); btn.className = 'btn-action btn-delete'; btn.innerText = 'Delete';
+        if (el.hasAttribute('onclick')) btn.setAttribute('onclick', el.getAttribute('onclick'));
+        el.replaceWith(btn);
+    });
+}
+document.addEventListener("DOMContentLoaded", () => {
+    upgradeUIButtons(); 
+    const observer = new MutationObserver(upgradeUIButtons);
+    observer.observe(document.body, { childList: true, subtree: true });
+});
+
+// =========================================================
+// 3. GLOBAL ACTIONS (Delete, Logout, Modals)
+// =========================================================
 window.deleteRecord = async function(tableName, recordId) {
-    if(confirm(`Are you sure you want to delete record ID ${recordId} from ${tableName}?`)) {
+    if(confirm(`Are you sure you want to delete this record?`)) {
         try { 
             const res = await fetch(`${API_BASE}/delete/${tableName}/${recordId}`, { method: 'DELETE' }); 
             const data = await res.json();
@@ -10,173 +120,23 @@ window.deleteRecord = async function(tableName, recordId) {
     }
 };
 
-const getDeleteBtn = (table, id) => `<span class="action-delete" onclick="deleteRecord('${table}', ${id})" title="Delete">🗑️</span>`;
-
-window.closeModal = function(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) modal.remove();
+window.deleteReading = async function(readingId) {
+    if(confirm(`WARNING: Deleting this reading will ALSO delete the generated Bill. Proceed?`)) {
+        try {
+            const res = await fetch(`${API_BASE}/readings/${readingId}`, { method: 'DELETE' });
+            if(res.ok) window.location.reload(); else alert((await res.json()).error);
+        } catch(e) { alert("Server error."); }
+    }
 };
 
-// Global Logout Function
 window.logout = function() {
-    // 1. Clear any stored authentication data
     localStorage.removeItem('consumerId');
-    
-    // 2. Look at the current page's URL
-    const currentPath = window.location.pathname.toLowerCase();
-    
-    // 3. Route back to the correct login screen based on the portal
-    // Since all consumer pages start with 'consumer-' (e.g., consumer-dashboard.html)
-    if (currentPath.includes('consumer')) {
-        window.location.replace("login-consumer.html");
-    } else {
-        // If the URL doesn't have 'consumer' in it, assume it's the Admin portal 
-        // (e.g., dashboard.html, bills.html, admin-support.html)
-        window.location.replace("login-admin.html");
-    }
-}
+    localStorage.removeItem('adminUsername');
+    if (window.location.pathname.toLowerCase().includes('consumer')) window.location.replace("login-consumer.html");
+    else window.location.replace("login-admin.html");
+};
 
-// ==========================================
-// UNIVERSAL PDF INVOICE GENERATOR (100% FIXED)
-// ==========================================
-window.downloadInvoice = async function(billId) {
-    const btn = event.currentTarget || document.activeElement;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳ Generating...";
-    btn.disabled = true;
-
-    try {
-        // 1. Backend se data fetch karna
-        const res = await fetch(`http://localhost:5000/api/bills/${billId}/invoice`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to fetch data");
-
-        // Calculations safely format karna
-        const energyCharge = parseFloat(data.units_consumed) * parseFloat(data.rate_per_unit);
-        const fixedCharge = parseFloat(data.fixed_charge);
-        const totalAmount = parseFloat(data.amount);
-        const prevReading = data.previous_reading !== null ? data.previous_reading : '-';
-        const currReading = data.current_reading !== null ? data.current_reading : '-';
-        const isPaid = data.payment_status === 'Paid';
-
-        // 2. Perfect Table-Based HTML Layout (Isme overlap nahi hoga)
-        const invoiceHtml = `
-        <div id="pdf-content" style="width: 800px; padding: 40px; background: white; font-family: Arial, sans-serif; color: #333; box-sizing: border-box;">
-            
-            <table width="100%" style="border-bottom: 2px solid #2563EB; padding-bottom: 10px; margin-bottom: 30px; border-collapse: collapse;">
-                <tr>
-                    <td style="vertical-align: bottom;">
-                        <h1 style="color: #2563EB; font-size: 36px; margin: 0;">⚡ Smart Power</h1>
-                        <p style="color: #777; font-size: 14px; margin: 5px 0 0 0;">Official Electricity Invoice</p>
-                    </td>
-                    <td style="text-align: right; vertical-align: bottom;">
-                        <h2 style="font-size: 24px; margin: 0 0 10px 0; color: #111;">INVOICE #${data.bill_id}</h2>
-                        <span style="background-color: ${isPaid ? '#D1FAE5' : '#FEE2E2'}; color: ${isPaid ? '#065F46' : '#991B1B'}; padding: 6px 12px; font-weight: bold; border-radius: 4px; font-size: 14px;">
-                            STATUS: ${data.payment_status.toUpperCase()}
-                        </span>
-                    </td>
-                </tr>
-            </table>
-
-            <table width="100%" style="margin-bottom: 30px; border-collapse: collapse;">
-                <tr>
-                    <td width="48%" style="background: #F9FAFB; padding: 20px; border-radius: 8px; vertical-align: top;">
-                        <h3 style="font-size: 14px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-top: 0;">BILLED TO</h3>
-                        <p style="font-size: 18px; font-weight: bold; margin: 10px 0 5px 0; color: #111;">${data.consumer_name}</p>
-                        <p style="font-size: 14px; color: #666; margin: 0 0 5px 0;">Consumer ID: #${data.consumer_id}</p>
-                        <p style="font-size: 14px; color: #666; margin: 0;">${data.permanent_address}</p>
-                    </td>
-                    <td width="4%"></td> <td width="48%" style="background: #F9FAFB; padding: 20px; border-radius: 8px; vertical-align: top;">
-                        <h3 style="font-size: 14px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-top: 0;">CONNECTION DETAILS</h3>
-                        <p style="font-size: 14px; color: #666; margin: 10px 0 5px 0;"><strong>Meter ID:</strong> #${data.connection_id} (${data.connection_type}, ${data.load_assign})</p>
-                        <p style="font-size: 14px; color: #666; margin: 0 0 5px 0;"><strong>Location:</strong> ${data.connection_address}</p>
-                        <p style="font-size: 14px; color: #666; margin: 0;"><strong>Power Source:</strong> ${data.grid_name} (${data.zone}, ${data.city})</p>
-                    </td>
-                </tr>
-            </table>
-
-            <table width="100%" style="border-collapse: collapse; margin-bottom: 40px;">
-                <thead>
-                    <tr style="background: #2563EB; color: white;">
-                        <th style="padding: 12px; text-align: left; border-radius: 4px 0 0 0;">Billing Month</th>
-                        <th style="padding: 12px; text-align: left;">Units Consumed</th>
-                        <th style="padding: 12px; text-align: left;">Tariff Rate</th>
-                        <th style="padding: 12px; text-align: left;">Fixed Charges</th>
-                        <th style="padding: 12px; text-align: right; border-radius: 0 4px 0 0;">Total Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr style="border-bottom: 1px solid #ddd;">
-                        <td style="padding: 15px 12px; font-weight: bold; color: #111;">${data.billing_month}</td>
-                        <td style="padding: 15px 12px; color: #555;">
-                            ${data.units_consumed} kWh<br>
-                            <span style="font-size:11px; color:#888;">(Prev: ${prevReading} | Curr: ${currReading})</span>
-                        </td>
-                        <td style="padding: 15px 12px; color: #555;">₹${data.rate_per_unit} / kWh</td>
-                        <td style="padding: 15px 12px; color: #555;">₹${data.fixed_charge}</td>
-                        <td style="padding: 15px 12px; text-align: right; font-weight: bold; font-size: 18px; color: #111;">₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <table width="100%" style="border-collapse: collapse;">
-                <tr>
-                    <td width="50%" style="vertical-align: top;">
-                        <p style="margin: 0 0 5px 0; font-size: 14px; color: #555;"><strong>Generated On:</strong> ${data.generated_on}</p>
-                        <p style="margin: 0; font-size: 14px; color: #DC2626;"><strong>Due Date:</strong> ${data.due_date}</p>
-                    </td>
-                    <td width="50%" style="text-align: right; vertical-align: top;">
-                        ${isPaid ? 
-                            `<p style="margin: 0 0 5px 0; font-size: 14px; color: #059669;"><strong>Paid On:</strong> ${data.paid_on}</p>
-                             <p style="margin: 0; font-size: 14px; color: #555;"><strong>Method:</strong> ${data.payment_method || 'Online Transaction'}</p>`
-                            : 
-                            `<p style="margin: 0; font-size: 18px; font-weight: bold; color: #DC2626;">AMOUNT DUE: ₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits:2})}</p>`
-                        }
-                    </td>
-                </tr>
-            </table>
-
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ccc; text-align: center; font-size: 12px; color: #999;">
-                This is a system-generated invoice and does not require a physical signature.<br>
-                For support, contact Smart Power Administration.
-            </div>
-        </div>
-        `;
-
-        // 3. SAFE HIDDEN DIV: Ye sabse zaroori hissa hai PDF library ke bug se bachne ke liye
-        const container = document.createElement('div');
-        container.innerHTML = invoiceHtml;
-        // Div ko screen ke upar rakhenge but poora transparent kar denge taaki library galti na kare
-        container.style.position = 'absolute';
-        container.style.top = '0';
-        container.style.left = '0';
-        container.style.opacity = '0'; 
-        container.style.zIndex = '-9999';
-        container.style.pointerEvents = 'none';
-        document.body.appendChild(container);
-
-        const element = document.getElementById('pdf-content');
-
-        // 4. Engine Configuration (A4 Format)
-        const opt = {
-            margin:       0.3,
-            filename:     `SmartPower_Invoice_${billId}.pdf`,
-            image:        { type: 'jpeg', quality: 1 },
-            html2canvas:  { scale: 2, useCORS: true },
-            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
-        };
-
-        // 5. Download and Clean up
-        await html2pdf().set(opt).from(element).save();
-        document.body.removeChild(container);
-
-    } catch (e) {
-        console.error("PDF Gen Error:", e);
-        alert("Error generating invoice. Ensure Backend is connected.");
-    } finally {
-        if(btn) {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }
-    }
+window.closeModal = function(modalId) {
+    if(modalId) document.getElementById(modalId).style.display = "none";
+    else document.querySelectorAll('.modal-overlay, .modal').forEach(m => m.style.display = 'none');
 };

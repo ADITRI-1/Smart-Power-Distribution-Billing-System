@@ -57,7 +57,9 @@ body {
     color: var(--text-muted);
 }
 
-.form-group input {
+.form-group input,
+.form-group select,
+.form-group textarea {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid var(--border-color);
@@ -67,7 +69,9 @@ body {
     transition: border-color 0.2s;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
     border-color: var(--primary-blue);
 }
 
@@ -161,7 +165,7 @@ body {
     font-size: 1.5rem;
 }
 
-/* --- Dashboard Specific Cards --- */
+/* --- Data Tables & Cards --- */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -193,6 +197,7 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
+    margin-bottom: 2rem;
 }
 
 .chart-card {
@@ -221,7 +226,6 @@ body {
     color: var(--text-muted);
 }
 
-/* --- Data Tables & Pages --- */
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -295,7 +299,7 @@ body {
     border-bottom: none;
 }
 
-/* --- Badges & Action Icons --- */
+/* --- Badges --- */
 .badge {
     padding: 0.25rem 0.75rem;
     border-radius: 9999px;
@@ -319,32 +323,9 @@ body {
     color: white;
 }
 
-.action-icons {
-    display: flex;
-    gap: 1.25rem;
-    font-size: 1.1rem;
-}
-
-.action-icons span {
-    cursor: pointer;
-}
-
-.action-edit {
-    color: #4B5563;
-}
-
-.action-delete {
-    color: #EF4444;
-}
-
-.action-pay {
-    color: #10B981;
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-weight: 500;
-    cursor: pointer;
+.badge-green {
+    background-color: #10B981;
+    color: white;
 }
 
 .text-green {
@@ -357,85 +338,176 @@ body {
     font-weight: 500;
 }
 
-/* --- Modal (Pop-up) Styles --- */
-.modal-overlay {
-    display: none; 
-    position: fixed; 
-    top: 0; left: 0; width: 100%; height: 100%; 
-    background: rgba(17, 24, 39, 0.6); 
-    align-items: center; justify-content: center; 
+/* ========================================================= */
+/* UNIFIED ACTION BUTTONS                                    */
+/* ========================================================= */
+.action-icons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.btn-action {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-view {
+    background-color: #E0F2FE;
+    color: #0369A1;
+}
+
+.btn-view:hover {
+    background-color: #BAE6FD;
+}
+
+.btn-edit {
+    background-color: #F3F4F6;
+    color: #4B5563;
+}
+
+.btn-edit:hover {
+    background-color: #E5E7EB;
+    color: #111827;
+}
+
+.btn-delete {
+    background-color: #FEE2E2;
+    color: #B91C1C;
+}
+
+.btn-delete:hover {
+    background-color: #FECACA;
+}
+
+.btn-pay {
+    background-color: #D1FAE5;
+    color: #065F46;
+}
+
+.btn-pay:hover {
+    background-color: #A7F3D0;
+}
+
+.btn-revert {
+    background-color: #FEF2F2;
+    color: #991B1B;
+}
+
+.btn-revert:hover {
+    background-color: #FEE2E2;
+}
+
+.btn-pdf {
+    background-color: #F8FAFC;
+    color: #374151;
+    border: 1px solid #E2E8F0;
+}
+
+.btn-pdf:hover {
+    background-color: #F1F5F9;
+    color: #0F172A;
+}
+
+/* --- Modals & Other Components --- */
+.modal-overlay,
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(17, 24, 39, 0.6);
+    align-items: center;
+    justify-content: center;
     z-index: 1000;
     backdrop-filter: blur(4px);
 }
 
 .modal-content {
-    background: var(--card-bg); 
-    padding: 2rem; 
-    border-radius: 8px; 
-    width: 90%; max-width: 700px; 
-    max-height: 90vh; overflow-y: auto;
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    margin: 5% auto;
 }
 
 .modal-header {
-    display: flex; justify-content: space-between; align-items: center; 
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 1.5rem;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 1rem;
 }
 
-.modal-header h2 { font-size: 1.25rem; color: var(--text-main); }
-.close-btn { cursor: pointer; font-size: 1.5rem; color: var(--text-muted); transition: color 0.2s; }
-.close-btn:hover { color: var(--text-main); }
+.modal-header h2 {
+    font-size: 1.25rem;
+    color: var(--text-main);
+    margin: 0;
+}
 
-.detail-group { margin-bottom: 1rem; }
-.detail-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;}
-.detail-value { font-size: 1rem; color: var(--text-main); font-weight: 500; }
+.close-btn {
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    transition: color 0.2s;
+    line-height: 1;
+}
 
+.close-btn:hover {
+    color: var(--text-main);
+}
 
-/* Solid Block Logout Button Hover Effect */
+.detail-group {
+    margin-bottom: 1rem;
+}
+
+.detail-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.detail-value {
+    font-size: 1rem;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
 .btn-logout {
-    display: block; /* This makes it a full box instead of just inline text */
-    padding: 0.75rem 1rem; /* Gives the box nice breathing room */
-    border-radius: 8px; /* Rounds the corners of the box */
-    color: var(--text-color, #4B5563); /* Default text color */
-    text-decoration: none; /* Removes any default link underlines */
-    transition: background-color 0.2s ease, color 0.2s ease;
+    display: block;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    color: #9CA3AF;
+    text-decoration: none;
+    transition: all 0.2s ease;
     font-weight: 500;
 }
 
 .btn-logout:hover {
-    background-color: var(--primary-blue, #2563EB) !important; /* The whole box turns blue */
-    color: #ffffff !important; /* The text turns white */
+    background-color: var(--primary-blue) !important;
+    color: #ffffff !important;
     cursor: pointer;
 }
 
-/* --- Payment Modal Styles --- */
-.modal {
-    display: none; 
-    position: fixed; 
-    z-index: 1000; 
-    left: 0;
-    top: 0;
-    width: 100%; 
-    height: 100%; 
-    background-color: rgba(0,0,0,0.6); 
-}
-
-.modal-content {
-    background-color: #ffffff;
-    margin: 5% auto; /* Reduced top margin to fit better on smaller screens */
-    padding: 30px; /* Increased padding */
-    border-radius: 12px;
-    width: 90%; 
-    max-width: 420px; /* Increased width */
-    text-align: center;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2); /* Softer, deeper shadow */
-}
-
 .qr-code {
-    width: 100%; /* Make it responsive to the modal width */
-    max-width: 240px; 
+    width: 100%;
+    max-width: 240px;
     margin: 20px auto;
     display: block;
     border: 1px solid #eee;
@@ -443,61 +515,19 @@ body {
     border-radius: 8px;
 }
 
-.close-btn {
-    color: #888;
-    float: right;
-    font-size: 28px;
+.timer {
     font-weight: bold;
-    cursor: pointer;
+    font-size: 18px;
+    color: #DC2626;
+    margin-top: 10px;
+    margin-bottom: 15px;
 }
 
-.close-btn:hover { color: #000; }
-
-.timer { 
-    font-weight: bold; 
-    font-size: 18px; 
-    color: #ff6b6b; 
-    margin-top: 10px; 
-}
-
-.pay-btn {
-    background-color: #28a745;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    width: 100%;
-}
-
-.pay-btn:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-}
-
-.pay-btn-table {
-    background-color: #28a745;
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 14px;
-    transition: background-color 0.2s;
-}
-
-.pay-btn-table:hover {
-    background-color: #218838;
-}
-
-/* Floating Support Button */
 .floating-support-btn {
     position: fixed;
     bottom: 30px;
     right: 30px;
-    background-color: #0d6efd; /* Matches your primary theme */
+    background-color: var(--primary-blue);
     color: white;
     width: 60px;
     height: 60px;
@@ -506,7 +536,7 @@ body {
     justify-content: center;
     align-items: center;
     font-size: 24px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     z-index: 1000;
     text-decoration: none;
@@ -515,10 +545,9 @@ body {
 
 .floating-support-btn:hover {
     transform: scale(1.1);
-    background-color: #0b5ed7;
+    background-color: var(--primary-blue-hover);
 }
 
-/* --- Help Desk Chat UI --- */
 .chat-box {
     max-height: 350px;
     overflow-y: auto;
@@ -538,14 +567,11 @@ body {
     max-width: 85%;
     line-height: 1.4;
     font-size: 0.95rem;
-
     word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
 }
 
 .msg-consumer {
-    background-color: #E0F2FE; /* Theme-consistent light blue */
+    background-color: #E0F2FE;
     color: #0369A1;
     align-self: flex-end;
     border-bottom-right-radius: 0;
@@ -566,51 +592,5 @@ body {
 }
 
 .msg-consumer .msg-time {
-    text-align: right;
-}
-
-/* --- Support Action Buttons & Badges --- */
-.btn-view {
-    background-color: var(--primary-blue);
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 0.875rem;
-    transition: background-color 0.2s;
-}
-
-.btn-view:hover {
-    background-color: var(--primary-blue-hover);
-}
-
-.badge-warning {
-    background-color: #FEF3C7;
-    color: #92400E;
-}
-
-.badge-success {
-    background-color: #D1FAE5;
-    color: #065F46;
-}
-
-/* Generic Chat Alignments */
-.msg-self {
-    background-color: #E0F2FE; 
-    color: #0369A1;
-    align-self: flex-end;
-    border-bottom-right-radius: 0;
-}
-
-.msg-other {
-    background-color: #E5E7EB;
-    color: #374151;
-    align-self: flex-start;
-    border-bottom-left-radius: 0;
-}
-
-.msg-self .msg-time {
     text-align: right;
 }
