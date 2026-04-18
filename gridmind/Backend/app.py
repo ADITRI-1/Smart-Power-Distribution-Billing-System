@@ -47,16 +47,27 @@ def init_database():
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
-    user_data = dao.check_and_get_user(data.get('username'), data.get('loginType'))
+    username = data.get('username')
+    login_type = data.get('loginType')
+    password = data.get('password')
+    consumer_id_input = data.get('consumerId') # Capture the new input
     
-    if not user_data or not check_password_hash(user_data['password_hash'], data.get('password')):
+    user_data = dao.check_and_get_user(username, login_type)
+    
+    # 1. Check Username and Password
+    if not user_data or not check_password_hash(user_data['password_hash'], password):
         return jsonify({"error": "Invalid username or password"}), 401
+
+    # 2. STRICT CHECK: Ensure the Consumer ID matches the Username!
+    if login_type == 'consumer':
+        if str(user_data.get('consumer_id')) != str(consumer_id_input):
+            return jsonify({"error": "Consumer ID does not match this username!"}), 401
 
     return jsonify({
         "message": "Login successful", 
         "role": user_data['role'], 
         "consumer_id": user_data.get('consumer_id'),
-        "username": data.get('username')
+        "username": username
     }), 200
 
 @app.route('/api/admin/change-password', methods=['POST'])

@@ -8,11 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const loginType = document.getElementById('loginType').value; 
+            
+            // Grab the Consumer ID (if it exists on the page)
+            const consumerIdInput = document.getElementById('loginConsumerId');
+            const consumerId = consumerIdInput ? consumerIdInput.value.trim() : null;
+
             try {
                 const res = await fetch(`${API_BASE}/login`, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ username, password, loginType }) 
+                    body: JSON.stringify({ username, password, loginType, consumerId }) 
                 });
                 const data = await res.json();
                 

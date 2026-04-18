@@ -13,6 +13,12 @@
             <h2 style="margin-top: 1rem;">Consumer Portal</h2>
             <form id="loginForm">
                 <input type="hidden" id="loginType" value="consumer">
+                
+                <div class="form-group">
+                    <label>Consumer ID</label>
+                    <input type="number" id="loginConsumerId" required placeholder="e.g. 1001">
+                </div>
+
                 <div class="form-group">
                     <label>Username</label>
                     <input type="text" id="username" required placeholder="Enter username">
@@ -30,32 +36,15 @@
             <form id="forgotForm" style="display: none;">
                 <h2>Reset Password</h2>
                 <p style="text-align:center; color:var(--text-muted); font-size:0.875rem; margin-bottom:1rem;">Enter your email to receive a 6-digit OTP.</p>
-                
-                <div class="form-group">
-                    <label>Email Address</label>
-                    <input type="email" id="resetEmail" placeholder="e.g. aditri@example.com" required>
-                </div>
-                
+                <div class="form-group"><label>Email Address</label><input type="email" id="resetEmail" required></div>
                 <button type="submit" class="btn-primary" id="btn-send-otp">Send OTP</button>
-                
-                <div class="auth-links">
-                    <a href="#" onclick="toggleForms('login')">Back to Login</a>
-                </div>
+                <div class="auth-links"><a href="#" onclick="toggleForms('login')">Back to Login</a></div>
             </form>
 
             <form id="resetForm" style="display: none;">
                 <h2>Enter OTP</h2>
-                <p style="text-align:center; color:var(--text-muted); font-size:0.875rem; margin-bottom:1rem;">Check your email for the 6-digit code.</p>
-                
-                <div class="form-group">
-                    <label>6-Digit OTP</label>
-                    <input type="text" id="resetOtp" placeholder="123456" maxlength="6" required>
-                </div>
-                <div class="form-group">
-                    <label>New Password</label>
-                    <input type="password" id="newPassword" placeholder="Enter new password" required>
-                </div>
-                
+                <div class="form-group"><label>6-Digit OTP</label><input type="text" id="resetOtp" maxlength="6" required></div>
+                <div class="form-group"><label>New Password</label><input type="password" id="newPassword" required></div>
                 <button type="submit" class="btn-primary" id="btn-reset-pw">Reset Password</button>
             </form>
         </div>

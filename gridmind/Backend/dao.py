@@ -219,7 +219,15 @@ def get_full_invoice_details(bill_id):
 
 def delete_record(table, id_column, record_id): return execute_modify(f"DELETE FROM {table} WHERE {id_column} = %s", (record_id,))
 
-def get_admin_dashboard_stats(): return execute_query("SELECT (SELECT COUNT(*) FROM power_grid) as total_grids, (SELECT COUNT(*) FROM distribution_area) as total_areas, (SELECT COUNT(*) FROM consumer) as total_consumers, (SELECT COUNT(*) FROM connection) as total_connections, (SELECT COALESCE(SUM(units_supplied), 0) FROM area_monthly_supply) as total_units_supplied", fetchall=False)
+def get_admin_dashboard_stats(): 
+    return execute_query("""
+        SELECT 
+            (SELECT COUNT(*) FROM power_grid) as total_grids, 
+            (SELECT COUNT(*) FROM distribution_area) as total_areas, 
+            (SELECT COUNT(*) FROM consumer) as total_consumers, 
+            (SELECT COUNT(*) FROM connection) as total_connections, 
+            (SELECT COALESCE(SUM(units_supplied), 0)::FLOAT FROM area_monthly_supply) as total_units_supplied
+    """, fetchall=False)
 def get_analytics_top_areas(): return execute_query("SELECT d.zone, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_units FROM meter_reading m JOIN connection c ON m.connection_id = c.connection_id JOIN distribution_area d ON c.area_id = d.area_id GROUP BY d.zone ORDER BY total_units DESC LIMIT 5")
 def get_analytics_power_loss(): return execute_query("WITH area_supply AS (SELECT area_id, COALESCE(SUM(units_supplied), 0)::FLOAT as total_supplied FROM area_monthly_supply GROUP BY area_id), area_consumed AS (SELECT c.area_id, COALESCE(SUM(m.units_consumed), 0)::FLOAT as total_consumed FROM meter_reading m JOIN connection c ON m.connection_id = c.connection_id GROUP BY c.area_id) SELECT d.zone, d.city, COALESCE(s.total_supplied, 0)::FLOAT as units_supplied, COALESCE(c.total_consumed, 0)::FLOAT as units_consumed, (COALESCE(s.total_supplied, 0) - COALESCE(c.total_consumed, 0))::FLOAT as power_loss FROM distribution_area d LEFT JOIN area_supply s ON d.area_id = s.area_id LEFT JOIN area_consumed c ON d.area_id = c.area_id ORDER BY power_loss DESC")
 def get_consumer_full_details(consumer_id):
