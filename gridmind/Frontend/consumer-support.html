@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Help Desk - Smart Power</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -15,19 +14,19 @@
                 <li><a href="consumer-connections.html">My Smart Meters</a></li>
                 <li><a href="consumer-bills.html">My Bills & Payments</a></li>
                 <li><a href="consumer-profile.html">My Profile</a></li>
-                <li><a href="consumer-support.html" class="active">Help Desk / Support</a></li>
+                <li><a href="consumer-support.html" class="active">Help Desk</a></li>
                 <li style="margin-top: 2rem;"><a href="#" class="btn-logout" onclick="logout()">Log Out</a></li>
             </ul>
         </aside>
 
         <main class="main-content">
             <div class="page-header">
-                <h1>Your Support Tickets</h1>
+                <h1>Help Desk & Support</h1>
                 <button onclick="openNewTicketModal()" class="btn-add">+ Create New Ticket</button>
             </div>
 
             <div class="table-card">
-                <table class="data-table">
+                <table class="data-table" id="supportTicketsTable">
                     <thead>
                         <tr>
                             <th>Ticket ID</th>
@@ -45,42 +44,47 @@
     </div>
 
     <div id="newTicketModal" class="modal">
-        <div class="modal-content" style="text-align: left;">
-            <span class="close-btn" onclick="closeModal('newTicketModal')">&times;</span>
-            <h2 style="margin-bottom: 1.5rem;">Create a New Support Request</h2>
-            
-            <div class="form-group">
-                <label>Subject:</label>
-                <input type="text" id="ticketSubject" placeholder="Brief subject of your issue">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Support Request</h2>
+                <span class="close-btn" onclick="closeModal('newTicketModal')">&times;</span>
             </div>
             
             <div class="form-group">
-                <label>Message:</label>
-                <textarea id="ticketMessage" rows="5" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; outline: none; font-family: inherit;" placeholder="Describe your issue in detail..."></textarea>
+                <label for="ticketSubject">Subject:</label>
+                <input type="text" id="ticketSubject" placeholder="Brief summary of your issue">
             </div>
             
-            <button class="btn-primary" onclick="submitTicket()">Submit Ticket</button>
+            <div class="form-group">
+                <label for="ticketMessage">Message:</label>
+                <textarea id="ticketMessage" rows="5" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-family: inherit; resize: vertical;" placeholder="Provide details..."></textarea>
+            </div>
+            
+            <button onclick="submitTicket()" class="btn-primary">Submit Ticket</button>
         </div>
     </div>
 
     <div id="chatModal" class="modal">
-        <div class="modal-content" style="text-align: left; max-width: 600px;">
-            <span class="close-btn" onclick="closeModal('chatModal')">&times;</span>
-            <h2 id="chatSubject" style="margin-bottom: 0.5rem;">Ticket Thread</h2>
-            <p style="margin-bottom: 1.5rem; color: var(--text-muted); font-size: 0.875rem;">
-                Status: <span id="chatStatus" class="badge"></span>
-            </p>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="chatSubject">Ticket Thread</h2>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span id="chatStatus" class="badge"></span>
+                    <span class="close-btn" onclick="closeModal('chatModal')">&times;</span>
+                </div>
+            </div>
             
             <div id="chatBox" class="chat-box">
                 </div>
             
-            <div style="display: flex; gap: 10px; margin-top: 15px;">
-                <input type="text" id="replyMessage" placeholder="Type your reply here..." style="flex: 1; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; outline: none;">
-                <button class="btn-primary" style="margin-top: 0; width: auto;" onclick="sendReply()">Send Reply</button>
+            <div style="display: flex; gap: 10px; align-items: center; margin-top: 15px;">
+                <input type="text" id="replyMessage" placeholder="Type your reply here..." style="flex: 1; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; outline: none;">
+                <button onclick="sendReply()" class="btn-add">Send Reply</button>
             </div>
         </div>
     </div>
 
+    <script src="js/common.js"></script>
     <script src="js/consumer-support.js"></script>
 </body>
 </html>

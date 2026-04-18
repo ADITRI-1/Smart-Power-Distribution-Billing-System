@@ -31,10 +31,9 @@ async function fetchMyTickets() {
         tickets.forEach(t => {
             // Map statuses to standard UI badges
             let badgeClass = 'badge-gray';
-            const statusLower = t.status.toLowerCase();
-            if (statusLower === 'open') badgeClass = 'badge-red';
-            else if (statusLower === 'in progress') badgeClass = 'badge-warning';
-            else if (statusLower === 'resolved') badgeClass = 'badge-success';
+            if (t.status === 'Open') badgeClass = 'badge-red';
+            else if (t.status === 'In Progress') badgeClass = 'badge-blue';
+            else if (t.status === 'Resolved') badgeClass = 'badge-green';
             
             const row = `
                 <tr>
@@ -42,7 +41,7 @@ async function fetchMyTickets() {
                     <td>${t.subject}</td>
                     <td>${t.created_at}</td>
                     <td><span class="badge ${badgeClass}">${t.status}</span></td>
-                    <td><button class="btn-view" onclick="openChatThread(${t.ticket_id})">View / Reply</button></td>
+                    <td><button class="pay-btn-table" onclick="openChatThread(${t.ticket_id})">View / Reply</button></td>
                 </tr>
             `;
             tbody.innerHTML += row;

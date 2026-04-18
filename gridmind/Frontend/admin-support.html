@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help Desk - Smart Power Admin</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="sidebar-brand">⚡ Smart Power</div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="power-grids.html">Power Grids</a></li>
+                <li><a href="distribution-areas.html">Distribution Areas</a></li>
+                <li><a href="consumers.html">Consumers</a></li>
+                <li><a href="connections.html">Connections</a></li>
+                <li><a href="meter-readings.html">Meter Readings</a></li>
+                <li><a href="bills.html">Bills</a></li>
+                <li><a href="analytics.html">Analytics</a></li>
+                <li><a href="admin-support.html" class="active">Help Desk</a></li>
+                <li style="margin-top: 2rem;"><a href="#" class="btn-logout" onclick="logout()">Log Out</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <div class="main-header">
+                <h1>Consumer Support Tickets</h1>
+                <a href="#" class="btn-logout" onclick="logout()">Log Out</a>
+            </div>
+
+            <div class="table-card">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Ticket ID</th>
+                            <th>Consumer Name</th>
+                            <th>Subject</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminTicketsTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <div id="adminChatModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="adminChatSubject">Ticket Thread</h2>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span id="adminChatStatus" class="badge"></span>
+                    <span class="close-btn" onclick="closeAdminModal()">&times;</span>
+                </div>
+            </div>
+
+            <div id="adminChatBox" class="chat-box">
+                </div>
+
+            <div style="display: flex; gap: 10px; align-items: center; margin-top: 15px;">
+                <input type="text" id="adminReplyMessage" placeholder="Type your response to the consumer..." style="flex: 1; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; outline: none;">
+                <button onclick="sendAdminReply()" class="btn-add">Send Reply</button>
+                <button onclick="resolveTicket()" class="btn-view" style="background-color: #10B981; margin-left: auto;">✔ Mark Resolved</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script src="js/admin-support.js"></script>
+</body>
+</html>
