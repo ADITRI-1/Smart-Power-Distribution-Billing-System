@@ -1,6 +1,26 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE = 'http://localhost:5000/api';
 
+    // === NEW: PASSWORD TOGGLE LOGIC START ===
+    const togglePassword = document.querySelector('#togglePassword');
+    const passwordInput = document.querySelector('#password');
+
+    if (togglePassword && passwordInput) {
+        togglePassword.addEventListener('click', function () {
+            // Toggle the type attribute
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            
+            // Toggle the icon emoji (Eye for hidden, Monkey for visible)
+            this.textContent = type === 'password' ? '👁️' : '🙈';
+            
+            // Keep the focus on the input so the user experience is smooth
+            passwordInput.focus();
+        });
+    }
+    // === NEW: PASSWORD TOGGLE LOGIC END ===
+
+    // 1. LOGIN FORM LOGIC
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', async function(e) {
@@ -9,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = document.getElementById('password').value;
             const loginType = document.getElementById('loginType').value; 
             
-            // Grab the Consumer ID (if it exists on the page)
             const consumerIdInput = document.getElementById('loginConsumerId');
             const consumerId = consumerIdInput ? consumerIdInput.value.trim() : null;
 
@@ -36,13 +55,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 2. RESET FORM LOGIC
     const resetForm = document.getElementById('resetForm');
     if (resetForm) {
         resetForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const newPassword = document.getElementById('newPassword').value;
             
-            // STRICT VALIDATION
             if (!window.isValidPassword(newPassword)) {
                 return alert("Password must contain at least 8 characters, 1 uppercase letter, 1 number, and 1 symbol.");
             }
@@ -67,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // 3. FORGOT FORM LOGIC
     const forgotForm = document.getElementById('forgotForm');
     if (forgotForm) {
         forgotForm.addEventListener('submit', async (e) => {

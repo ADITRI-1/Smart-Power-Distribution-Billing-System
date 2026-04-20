@@ -4,10 +4,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db_connection
 import dao
 import re
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
+# ========================================================
+# HELPERS
+# ========================================================
 def is_strong_password(password):
     """Backend validation: Min 8 chars, 1 uppercase, 1 number, 1 symbol"""
     if len(password) < 8: return False
@@ -42,7 +46,7 @@ def init_database():
         conn.close()
 
 # ========================================================
-# AUTHENTICATION
+# AUTHENTICATION & PASSWORD RESET
 # ========================================================
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -50,15 +54,13 @@ def login():
     username = data.get('username')
     login_type = data.get('loginType')
     password = data.get('password')
-    consumer_id_input = data.get('consumerId') # Capture the new input
+    consumer_id_input = data.get('consumerId') 
     
     user_data = dao.check_and_get_user(username, login_type)
     
-    # 1. Check Username and Password
     if not user_data or not check_password_hash(user_data['password_hash'], password):
         return jsonify({"error": "Invalid username or password"}), 401
 
-    # 2. STRICT CHECK: Ensure the Consumer ID matches the Username!
     if login_type == 'consumer':
         if str(user_data.get('consumer_id')) != str(consumer_id_input):
             return jsonify({"error": "Consumer ID does not match this username!"}), 401
@@ -74,8 +76,6 @@ def login():
 def admin_change_password():
     data = request.json
     new_pw = data.get('newPassword')
-    
-    # STRICT ENFORCEMENT
     if not is_strong_password(new_pw):
         return jsonify({"error": "Password must have 8+ chars, 1 uppercase, 1 number, 1 symbol."}), 400
 
@@ -90,8 +90,6 @@ def admin_change_password():
 def reset_password():
     data = request.json
     new_pw = data.get('newPassword')
-    
-    # STRICT ENFORCEMENT
     if not is_strong_password(new_pw):
         return jsonify({"error": "Password must have 8+ chars, 1 uppercase, 1 number, 1 symbol."}), 400
 
@@ -105,55 +103,40 @@ def forgot_password():
     return jsonify({"message": "If the email exists, an OTP has been sent."}), 200
 
 # ========================================================
-# CORE ENTITIES
+# CONSUMERS & PROFILES
 # ========================================================
 @app.route('/api/consumers', methods=['GET', 'POST'])
 def consumers():
     if request.method == 'POST':
         data = request.json
-        
-        # 1. Strict Password Check
         if not is_strong_password(data.get('password')):
-            return jsonify({"error": "Password must have 8+ chars, 1 uppercase, 1 number, 1 symbol."}), 400
-            
-        # 2. FIX: Convert empty email string to None for SQL NULL compatibility
-        email_val = data.get('email')
-        email = email_val.strip() if email_val and email_val.strip() != "" else None
-        
-        pw_hash = generate_password_hash(data['password'])
-        
-        # 3. Call DAO
-        success, msg = dao.add_consumer(
-            data['id'], data['name'], data['address'], 
-            data['age'], data['username'], pw_hash, email
-        )
-        
-        if success:
-            return jsonify({"message": msg}), 201
-        else:
-            # Send the specific database error back to the frontend
-            return jsonify({"error": msg}), 400
-            
+            return jsonify({"error": "Password too weak."}), 400
+        email = data.get('email').strip() if data.get('email') else None
+        success, msg = dao.add_consumer(data['id'], data['name'], data['address'], data['age'], data['username'], generate_password_hash(data['password']), email)
+        return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
     return jsonify(dao.get_consumers())
+
+@app.route('/api/consumers/<int:consumer_id>', methods=['PUT'])
+def edit_consumer(consumer_id):
+    success, msg = dao.update_consumer(consumer_id, request.json['name'], request.json['address'], request.json['age'])
+    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
+
 @app.route('/api/consumer/<int:consumer_id>/profile', methods=['GET', 'PUT'])
 def consumer_profile(consumer_id):
     if request.method == 'PUT':
         data = request.json
         pw_hash = None
         if data.get('password'):
-            # STRICT ENFORCEMENT ON PROFILE UPDATE
             if not is_strong_password(data['password']):
-                return jsonify({"error": "Password must have 8+ chars, 1 uppercase, 1 number, 1 symbol."}), 400
+                return jsonify({"error": "Password too weak."}), 400
             pw_hash = generate_password_hash(data['password'])
-            
         success, msg = dao.update_consumer_profile(consumer_id, data['name'], data['address'], data['age'], pw_hash)
         return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
     return jsonify(dao.get_consumer_profile(consumer_id))
 
-# --- KEEP ALL YOUR OTHER EXISTING ROUTES EXACTLY AS THEY ARE (Grids, Areas, Connections, Bills, Readings, Analytics, etc) ---
-@app.route('/api/admin/dashboard', methods=['GET'])
-def admin_dashboard_stats(): return jsonify(dao.get_admin_dashboard_stats())
-
+# ========================================================
+# GRIDS & AREAS
+# ========================================================
 @app.route('/api/grids', methods=['GET', 'POST'])
 def grids():
     if request.method == 'POST':
@@ -178,11 +161,9 @@ def edit_area(area_id):
     success, msg = dao.update_area(area_id, request.json['zone'], request.json['city'], request.json['grid_id'], request.json['poc'])
     return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
 
-@app.route('/api/consumers/<int:consumer_id>', methods=['PUT'])
-def edit_consumer(consumer_id):
-    success, msg = dao.update_consumer(consumer_id, request.json['name'], request.json['address'], request.json['age'])
-    return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
-
+# ========================================================
+# CONNECTIONS & METER READINGS
+# ========================================================
 @app.route('/api/connections', methods=['GET', 'POST'])
 def connections():
     if request.method == 'POST':
@@ -194,6 +175,17 @@ def connections():
 def edit_connection(connection_id):
     success, msg = dao.update_connection(connection_id, request.json['consumer_id'], request.json['area_id'], request.json['type'], request.json['load'], request.json['status'])
     return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
+
+# FIXED: This route is necessary for the frontend to prevent "Gap Detected" errors
+@app.route('/api/connection/<int:connection_id>/last-reading', methods=['GET'])
+def get_connection_last_info(connection_id):
+    last_row = dao.get_last_reading_row(connection_id)
+    if last_row:
+        return jsonify({
+            "last_reading": float(last_row['current_reading']),
+            "last_month": last_row['billing_month']
+        })
+    return jsonify({"last_reading": 0.0, "last_month": "None"})
 
 @app.route('/api/readings', methods=['GET', 'POST'])
 def readings():
@@ -211,6 +203,9 @@ def modify_reading(reading_id):
         success, msg = dao.update_meter_reading(reading_id, request.json['previous_reading'], request.json['current_reading'])
         return jsonify({"message": msg}) if success else jsonify({"error": msg}), 200 if success else 400
 
+# ========================================================
+# BILLS & PAYMENTS
+# ========================================================
 @app.route('/api/bills', methods=['GET'])
 def get_bills(): return jsonify(dao.get_bills())
 
@@ -229,6 +224,12 @@ def pay_bill(bill_id):
     result = dao.pay_bill_transaction(bill_id)
     return jsonify(result), 200 if result['success'] else 400
 
+# ========================================================
+# ANALYTICS & DASHBOARDS
+# ========================================================
+@app.route('/api/admin/dashboard', methods=['GET'])
+def admin_dashboard_stats(): return jsonify(dao.get_admin_dashboard_stats())
+
 @app.route('/api/analytics', methods=['GET'])
 def get_analytics(): return jsonify({"top_areas": dao.get_analytics_top_areas(), "power_loss": dao.get_analytics_power_loss()})
 
@@ -246,6 +247,9 @@ def get_consumer_conn(consumer_id): return jsonify(dao.get_consumer_connections(
 @app.route('/api/consumer/<int:consumer_id>/bills', methods=['GET'])
 def get_consumer_bills(consumer_id): return jsonify(dao.get_consumer_bills(consumer_id))
 
+# ========================================================
+# HELP DESK / TICKETS
+# ========================================================
 @app.route('/api/consumer/<int:consumer_id>/tickets', methods=['GET', 'POST'])
 def handle_consumer_tickets(consumer_id):
     if request.method == 'POST':
@@ -271,6 +275,9 @@ def post_ticket_reply(ticket_id):
     success, msg = dao.add_ticket_reply(ticket_id, request.json.get('senderRole'), request.json.get('message'))
     return jsonify({"message": msg}) if success else jsonify({"error": msg}), 201 if success else 400
 
+# ========================================================
+# GLOBAL DELETE
+# ========================================================
 @app.route('/api/delete/<table_name>/<int:record_id>', methods=['DELETE'])
 def delete_record(table_name, record_id):
     pk_map = {'power_grid': 'grid_id', 'distribution_area': 'area_id', 'consumer': 'consumer_id', 'connection': 'connection_id'}
@@ -280,5 +287,3 @@ def delete_record(table_name, record_id):
 if __name__ == '__main__':
     init_database()
     app.run(debug=True, port=5000)
-
-from datetime import datetime

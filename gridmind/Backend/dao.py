@@ -373,3 +373,31 @@ def add_ticket_reply(ticket_id, sender_role, message):
         return False, str(e)
     finally: cur.close(); conn.close()
 
+def get_latest_official_reading(connection_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Get the current_reading from the most recent entry
+        cur.execute("""
+            SELECT current_reading FROM meter_reading 
+            WHERE connection_id = %s 
+            ORDER BY reading_id DESC LIMIT 1
+        """, (connection_id,))
+        row = cur.fetchone()
+        return row[0] if row else 0
+    finally:
+        cur.close(); conn.close()
+
+def get_last_reading_row(connection_id):
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT current_reading, billing_month 
+            FROM meter_reading 
+            WHERE connection_id = %s 
+            ORDER BY reading_id DESC LIMIT 1
+        """, (connection_id,))
+        return cur.fetchone()
+    finally:
+        cur.close(); conn.close()

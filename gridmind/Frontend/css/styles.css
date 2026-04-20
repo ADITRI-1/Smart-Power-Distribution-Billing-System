@@ -200,3 +200,20 @@ body { background-color: var(--bg-light); color: var(--text-main); }
 .msg-admin { background-color: #E2E8F0; color: #0F172A; align-self: flex-start; border-bottom-left-radius: 2px; }
 .msg-time { font-size: 0.75em; opacity: 0.6; margin-top: 5px; display: block; font-weight: 600; }
 .msg-consumer .msg-time { text-align: right; }
+
+.password-wrapper {
+    width: 100%;
+}
+
+.password-wrapper input {
+    margin-bottom: 0; /* Prevents double margin issues */
+}
+
+#togglePassword {
+    color: #6B7280; /* Neutral gray color */
+    transition: color 0.2s ease;
+}
+
+#togglePassword:hover {
+    color: #3B82F6; /* Matches your theme blue on hover */
+}

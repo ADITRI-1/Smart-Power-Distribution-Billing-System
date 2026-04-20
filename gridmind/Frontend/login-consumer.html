@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Power - Consumer Login</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <a href="index.html" style="text-decoration: none; font-size: 0.8rem; color: var(--primary-blue);">← Back to Selection</a>
+            <a href="index.html" style="text-decoration: none; font-size: 0.8rem; color: var(--primary-blue);">← Back to
+                Selection</a>
             <h2 style="margin-top: 1rem;">Consumer Portal</h2>
             <form id="loginForm">
                 <input type="hidden" id="loginType" value="consumer">
-                
+
                 <div class="form-group">
                     <label>Consumer ID</label>
                     <input type="number" id="loginConsumerId" required placeholder="e.g. 1001">
@@ -25,7 +28,12 @@
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" id="password" required placeholder="••••••••">
+                    <div class="password-wrapper" style="position: relative; display: flex; align-items: center;">
+                        <input type="password" id="password" placeholder="Enter your password"
+                            style="width: 100%; padding-right: 40px;">
+                        <span id="togglePassword"
+                            style="position: absolute; right: 12px; cursor: pointer; font-size: 1.2rem; user-select: none;">👁️</span>
+                    </div>
                 </div>
                 <div class="auth-links" id="forgot-link-container">
                     <a href="#" onclick="toggleForms('forgot')">Forgot Password?</a>
@@ -35,7 +43,8 @@
 
             <form id="forgotForm" style="display: none;">
                 <h2>Reset Password</h2>
-                <p style="text-align:center; color:var(--text-muted); font-size:0.875rem; margin-bottom:1rem;">Enter your email to receive a 6-digit OTP.</p>
+                <p style="text-align:center; color:var(--text-muted); font-size:0.875rem; margin-bottom:1rem;">Enter
+                    your email to receive a 6-digit OTP.</p>
                 <div class="form-group"><label>Email Address</label><input type="email" id="resetEmail" required></div>
                 <button type="submit" class="btn-primary" id="btn-send-otp">Send OTP</button>
                 <div class="auth-links"><a href="#" onclick="toggleForms('login')">Back to Login</a></div>
@@ -43,12 +52,15 @@
 
             <form id="resetForm" style="display: none;">
                 <h2>Enter OTP</h2>
-                <div class="form-group"><label>6-Digit OTP</label><input type="text" id="resetOtp" maxlength="6" required></div>
-                <div class="form-group"><label>New Password</label><input type="password" id="newPassword" required></div>
+                <div class="form-group"><label>6-Digit OTP</label><input type="text" id="resetOtp" maxlength="6"
+                        required></div>
+                <div class="form-group"><label>New Password</label><input type="password" id="newPassword" required>
+                </div>
                 <button type="submit" class="btn-primary" id="btn-reset-pw">Reset Password</button>
             </form>
         </div>
     </div>
     <script src="js/auth.js"></script>
 </body>
+
 </html>
